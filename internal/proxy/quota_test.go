@@ -137,6 +137,33 @@ func TestModelCooldownAndRecoveryRequiresFreshQuota(t *testing.T) {
 	}
 }
 
+// CPA keeps a model's unavailable/exceeded flags until a request through the
+// credential succeeds. Once that model's own reset has passed, a fresh live
+// allowance must prove recovery without anyone refreshing or sending by hand.
+func TestPassedModelResetYieldsToFreshQuota(t *testing.T) {
+	c := New(testConfig())
+	after := time.Date(2026, 10, 12, 0, 5, 0, 0, time.UTC)
+	v, err := parseCredentials([]byte(`{"credentials":[{"id":"one","provider":"generic","models":["real-model"],"model_states":{"real-model":{"unavailable":true,"status_message":{"error":{"type":"usage_limit_reached"}},"quota":{"exceeded":true,"next_retry_after":"2026-10-12T00:00:00Z"}}}}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := v[0]
+	e.negative = c.credentialEvidence(e, after)
+	if a := c.finish(e, evidence{}, after.Add(time.Hour), after); a.State == "allowed" {
+		t.Fatalf("stale model flags alone proved recovery: %+v", a)
+	}
+	q, err := parseQuotaResponse([]byte(`{"rate_limit":{"allowed":true,"primary_window":{"used_percent":10}}}`), "", after, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := c.finish(e, q, after.Add(time.Hour), after); a.State != "allowed" {
+		t.Fatalf("passed model reset kept the account limited: %+v", a)
+	}
+	if next := c.nextProbe(combine(q, independentModelEvidence(e.negative, after)), after, 0); !next.Before(after.Add(time.Hour)) {
+		t.Fatalf("passed model reset forced the long probe cadence: %v", next)
+	}
+}
+
 func TestPluginActualCamelCaseSchema(t *testing.T) {
 	now := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {

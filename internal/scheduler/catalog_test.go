@@ -109,6 +109,39 @@ func TestDesktopSessionEndKeepsQueuedContinue(t *testing.T) {
 	}
 }
 
+func TestOpeningLimitedSessionKeepsQueuedContinue(t *testing.T) {
+	e, q, b, clock := hostedFixture(t, true)
+	hostedEvent(t, e, cliA, "StopFailure", clock.at)
+	hostedEvent(t, e, cliA, "SessionEnd", clock.at.Add(time.Second))
+	// The user only clicks the session; Claude starts its process, no prompt.
+	hostedEvent(t, e, cliA, "SessionStart", clock.at.Add(2*time.Second))
+	jobs := jobsOf(t, e, cliA)
+	if s := state(t, e, cliA); s.State != domain.Cooldown || len(jobs) != 1 || jobs[0].State != domain.Cooldown {
+		t.Fatalf("opening the session cancelled its queued continue: %+v %+v", s, jobs)
+	}
+	clock.at = clock.at.Add(time.Minute)
+	refresh(t, e, q, freshAccount("a", clock.at))
+	scan(t, e)
+	if b.count() != 1 {
+		t.Fatalf("reopened session not continued: calls=%d", b.count())
+	}
+}
+
+func TestPromptAfterOpeningSessionSupersedesQueuedContinue(t *testing.T) {
+	e, _, _, clock := hostedFixture(t, true)
+	hostedEvent(t, e, cliA, "StopFailure", clock.at)
+	hostedEvent(t, e, cliA, "SessionStart", clock.at.Add(time.Second))
+	hostedEvent(t, e, cliA, "UserPromptSubmit", clock.at.Add(2*time.Second))
+	for _, j := range jobsOf(t, e, cliA) {
+		if j.State != domain.Cancelled {
+			t.Fatalf("manual prompt left the continue queued: %+v", j)
+		}
+	}
+	if s := state(t, e, cliA); s.State != domain.Running {
+		t.Fatalf("manual prompt not running: %+v", s)
+	}
+}
+
 func TestDesktopSessionEndWithoutJobStaysReopenable(t *testing.T) {
 	e, _, _, clock := hostedFixture(t, true)
 	hostedEvent(t, e, cliA, "Stop", clock.at)

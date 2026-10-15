@@ -191,9 +191,18 @@ func combine(a, b evidence) evidence {
 	return a
 }
 
-func independentModelEvidence(negative evidence) evidence {
+// independentModelEvidence keeps the model-specific limits a fresh global
+// quota cannot disprove. CPA leaves a model's unavailable/exceeded flags on the
+// credential until a request through it succeeds, so a model limit whose own
+// reset has already passed is stale: dropping it lets fresh quota prove
+// recovery instead of waiting for someone to send by hand. Limits with a
+// future or unknown reset still hold.
+func independentModelEvidence(negative evidence, now time.Time) evidence {
 	q := evidence{checked: negative.checked}
 	for _, w := range negative.windows {
+		if w.ResetAt != nil && !w.ResetAt.After(now) {
+			continue
+		}
 		if strings.HasPrefix(w.Name, "model:") && w.Blocked {
 			q.windows = append(q.windows, w)
 			q.blocked = q.blocked || w.Blocked
@@ -222,7 +231,7 @@ func (c *Client) finish(e credential, live evidence, next, now time.Time) domain
 	// Fresh global quota can prove top-level cooldown recovery, but cannot
 	// prove recovery of an independent model quota. Keep model-state limits.
 	if live.allowed && !live.blocked && !live.failed && completeWindows(live.windows) && c.fresh(live.checked, now) {
-		q = combine(live, independentModelEvidence(e.negative))
+		q = combine(live, independentModelEvidence(e.negative, now))
 	} else {
 		q = combine(e.negative, live)
 	}

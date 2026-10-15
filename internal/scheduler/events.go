@@ -61,6 +61,7 @@ func (e *Engine) HandleEvent(ctx context.Context, event domain.HookEvent) error 
 	defer e.mu.Unlock()
 	changed := false
 	kept := false
+	reopened := false
 	var superseded []string
 	err := e.store.Update(ctx, func(t *store.Tx) error {
 		accepted, err := t.AcceptEvent(event)
@@ -141,6 +142,15 @@ func (e *Engine) HandleEvent(ctx context.Context, event domain.HookEvent) error 
 			// process when its deep link reopens it. The dispatched job keeps
 			// waiting for the prompt hook, and the in-flight send is not cancelled.
 			kept = true
+		case event.HookEventName == "SessionStart" && dispatched == nil && event.Source != "clear" && queuedContinue(t, s):
+			// Opening a quota-limited session (clicking it in Claude desktop, or
+			// relaunching its terminal) starts its process without any new
+			// prompt. That is not a new lifecycle: the queued continue stays
+			// queued until quota recovers or the user sends a prompt themselves.
+			kept = true
+			reopened = true
+			s.State = domain.Cooldown
+			s.Reason = "会话已重新打开；额度恢复后将继续"
 		case event.HookEventName == "SessionEnd" && dispatched == nil && keepAfterExit(t, s, event):
 			s.State = domain.Cooldown
 			s.Reason = "终端已关闭；额度恢复后将在后台续写"
@@ -235,7 +245,9 @@ func (e *Engine) HandleEvent(ctx context.Context, event domain.HookEvent) error 
 		}
 		switch event.HookEventName {
 		case "SessionStart", "UserPromptSubmit":
-			markRunning(t, s.ID, event.ObservedAt)
+			if !reopened {
+				markRunning(t, s.ID, event.ObservedAt)
+			}
 		case "Stop", "StopFailure", "SessionEnd":
 			clearRunning(t, s.ID)
 		}
@@ -296,6 +308,12 @@ func keepAfterExit(t *store.Tx, s domain.Session, event domain.HookEvent) bool {
 	if s.Origin == nil || (s.Origin.App != domain.AppTerminal && s.Origin.App != domain.AppClaudeDesktop && s.Origin.App != domain.AppClient) || event.Reason == "clear" || event.Reason == "logout" {
 		return false
 	}
+	return queuedContinue(t, s)
+}
+
+// queuedContinue reports whether the session's current generation still has a
+// quota continue waiting to be sent.
+func queuedContinue(t *store.Tx, s domain.Session) bool {
 	for _, j := range t.Jobs {
 		if j.SessionID == s.ID && j.Kind == "" && j.Generation == s.Generation && (j.State == domain.Cooldown || j.State == domain.Ready) {
 			return true

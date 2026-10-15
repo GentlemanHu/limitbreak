@@ -4,6 +4,10 @@ All notable changes are listed here. Versions follow the `VERSION` file and [Sem
 
 ## [Unreleased]
 
+### Fixed
+- Auto-continue never fired after a Codex usage limit routed through CLIProxyAPI. CLIProxyAPI keeps a model's `unavailable`/`exceeded` flags on the credential until a request through it succeeds, and those flags kept the account "limited" even after their own reset passed and the official usage endpoint reported a fresh allowance. Model-level limits whose reset has passed now yield to fresh live quota; limits with a future or unknown reset still hold.
+- Opening a quota-limited session (clicking it in Claude desktop, or relaunching its terminal) no longer cancels its queued continue. Its `SessionStart` used to count as a new lifecycle. The session now stays in cooldown until quota recovers; a prompt you send yourself still supersedes the queued continue, and `/clear` still cancels it.
+
 ## [1.0.0] - 2026-10-15
 
 First public release. Earlier private builds were numbered 4.x; the public history starts here.

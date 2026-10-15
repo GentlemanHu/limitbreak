@@ -298,7 +298,7 @@ func (c *Client) Refresh(ctx context.Context) ([]domain.Account, error) {
 					probeNow := c.now().UTC()
 					scheduleEvidence := q
 					if q.allowed && !q.blocked && !q.failed && completeWindows(q.windows) && c.fresh(q.checked, probeNow) {
-						scheduleEvidence = combine(q, independentModelEvidence(e.negative))
+						scheduleEvidence = combine(q, independentModelEvidence(e.negative, probeNow))
 					} else {
 						scheduleEvidence = combine(e.negative, q)
 					}
