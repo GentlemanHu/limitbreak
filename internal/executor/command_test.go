@@ -25,24 +25,34 @@ func writeScript(t *testing.T, dir, body string) string {
 	return path
 }
 
+// shellCommand runs body through the system shell, so tests that wait for the
+// client's output do not depend on how fast macOS admits a freshly written
+// executable. Placeholders in args are still substituted as whole arguments.
+func shellCommand(body string, args ...string) []string {
+	return append([]string{"/bin/sh", "-c", body, "client"}, args...)
+}
+
 func waitFile(t *testing.T, path string) string {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	// Generous: a freshly written script can take seconds to start on a
+	// loaded machine (security assessment, -race); success returns at once.
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if b, err := os.ReadFile(path); err == nil && strings.HasSuffix(string(b), "\n") {
 			return string(b)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatalf("%s was not written", path)
+	b, err := os.ReadFile(path)
+	t.Fatalf("%s was not written: %q %v", path, b, err)
 	return ""
 }
 
 func TestCommandSubstitutesWholeArgumentsWithoutShell(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
-	script := writeScript(t, dir, `printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "$LIMITBREAK_SESSION_ID" "$(pwd -P)" > "$4"`+"\n")
-	c := NewCommand(ClientSpec{ID: "codex", Command: []string{script, "{session_id}", "{message}", "{cwd}", out}, Timeout: 5 * time.Second})
+	body := `printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "$LIMITBREAK_SESSION_ID" "$(pwd -P)" > "$4"`
+	c := NewCommand(ClientSpec{ID: "codex", Command: shellCommand(body, "{session_id}", "{message}", "{cwd}", out)})
 	b := clientBinding("codex", "sess-1", dir)
 	if p := c.Preflight(context.Background(), b); !p.OK || !p.AccessibilityGranted {
 		t.Fatalf("preflight: %+v", p)
@@ -110,10 +120,9 @@ func TestCommandIsBusyWhileRunningAndKilledAfterTimeout(t *testing.T) {
 func TestRouterRoutesClientsAndNeverUsesDirect(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
-	script := writeScript(t, dir, `echo ran > "$1"`+"\n")
 	direct := &fakeDirect{}
 	r := NewRouter(nil, nil).WithDirect(direct).WithClients(map[string]Backend{
-		"codex": NewCommand(ClientSpec{ID: "codex", Command: []string{script, out, "{message}"}}),
+		"codex": NewCommand(ClientSpec{ID: "codex", Command: shellCommand(`echo ran > "$1"`, out, "{message}")}),
 	})
 	b := clientBinding("codex", "s1", dir)
 	b.ExecutionDirect = true
