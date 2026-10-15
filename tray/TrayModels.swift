@@ -146,6 +146,7 @@ struct TraySession: Decodable, Identifiable {
     let target_override: String?
     let native_resume: String?
     let priority: Int?
+    let permission_mode: String?
     let pool: TrayPool?
     let host: TrayHost?
     let reason_text: String?

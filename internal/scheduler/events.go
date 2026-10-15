@@ -104,6 +104,9 @@ func (e *Engine) HandleEvent(ctx context.Context, event domain.HookEvent) error 
 		if event.Provider != "" && s.Origin != nil && s.Origin.App == domain.AppClient && domain.ValidSignalProvider(event.Provider) {
 			s.Provider = event.Provider
 		}
+		if event.PermissionMode != "" && domain.ValidPermissionMode(event.PermissionMode) {
+			s.PermissionMode = event.PermissionMode
+		}
 		s.UpdatedAt = event.ObservedAt
 		var dispatched *domain.Job
 		for _, j := range t.Jobs {

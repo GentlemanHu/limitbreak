@@ -205,7 +205,7 @@ private struct TestSendSheet: View {
     }
     private var sendExplanation: String {
         guard session.origin?.app == "terminal" else {
-            if runtime.directDeliveryEnabled {
+            if runtime.directDeliveryEnabled && runtime.directAccepted(session) {
                 return "这会真实地发送一条消息（不检查额度）：会话进程在运行时经会话消息端口静默送达；未运行时先在后台打开该会话让 Claude 启动它，再静默送达，并把焦点还给你原来的应用。进程始终没有启动时才打开会话、核验输入框为空后输入发送。会话随后上报收到消息才算成功。"
             }
             return "这会真实地打开该会话（与在 Claude 侧栏点它相同），核验是它本身且输入框为空，再写入文案并按发送；不检查额度。会话随后上报收到消息才算成功。输入框有草稿、窗口对不上时会停下，不会猜。"

@@ -27,7 +27,7 @@ enum DeliveryChannel: String {
         case .direct: return "会话进程在运行，经会话自带的消息端口静默送达；未切换窗口、未动键盘"
         case .wokenDirect: return "会话进程原本未运行：先在后台打开会话让 Claude 启动它，再经消息端口静默送达；未输入任何内容"
         case .windowAfterWake: return "后台唤醒后会话进程始终没有启动，改为打开会话、核验输入框后输入发送"
-        case .window: return terminal ? "输入到会话所在的 tmux 窗格，或在后台用 claude -p --resume 续写" : "打开会话、核验输入框为空后输入发送（后台直发已关闭或不可用）"
+        case .window: return terminal ? "输入到会话所在的 tmux 窗格，或在后台用 claude -p --resume 续写" : "打开会话、核验输入框为空后输入发送（后台直发已关闭、不可用，或会话的权限模式会扣下直发消息）"
         }
     }
     // One line for compact cells.
@@ -72,12 +72,33 @@ extension TrayRuntime {
 
     var directDeliveryEnabled: Bool { snapshot?.policy["direct_delivery"]?.string != "off" }
 
+    // Mirrors domain.DirectAccepted: only sessions reporting a prompting
+    // permission mode take a direct message without holding it for approval.
+    func directAccepted(_ session: TraySession) -> Bool {
+        ["default", "acceptEdits", "auto", "dontAsk"].contains(session.permission_mode ?? "")
+    }
+
+    // Why a hosted Claude session will be typed into instead of sent directly.
+    func directHeldReason(_ session: TraySession) -> String {
+        if session.permission_mode == "bypassPermissions" {
+            return "会话处于「跳过权限确认」模式：Claude 会把不带发送方权限模式的直发消息扣下待批准，桌面会话无法批准、到期作废，所以改为打开会话后输入"
+        }
+        if let mode = session.permission_mode, !mode.isEmpty {
+            return "会话处于 \(mode) 模式，直发消息可能被扣下待批准，所以改为打开会话后输入"
+        }
+        return "会话还未上报权限模式（下一次该会话的 Hook 后可知），为免直发被扣下，先用打开会话后输入"
+    }
+
     func deliveryPlan(for session: TraySession) -> DeliveryPlan {
         if session.origin?.app == "terminal" {
             return DeliveryPlan(title: "终端发送", summary: "tmux 输入或后台续写", detail: "输入到 tmux 窗格，或会话已关闭时在后台续写", icon: "terminal", color: .blue)
         }
         guard directDeliveryEnabled else {
             return DeliveryPlan(title: "界面发送", summary: "后台直发已关闭", detail: "后台静默直发已在「托管规则 › 发送方式」关闭", icon: "keyboard", color: .blue)
+        }
+        guard directAccepted(session) else {
+            let summary = session.permission_mode == "bypassPermissions" ? "跳过权限模式不收直发" : "权限模式未知，先用界面"
+            return DeliveryPlan(title: "界面发送", summary: summary, detail: directHeldReason(session), icon: "keyboard", color: .blue)
         }
         var detail = "会话进程在运行时静默直发；未运行时先在后台唤醒会话再直发"
         if snapshot?.policy["restore_focus"]?.string != "off" { detail += "，并把焦点还给原应用" }

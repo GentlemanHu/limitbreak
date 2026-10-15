@@ -25,6 +25,23 @@ func TestHookNormalizationDropsPrivateContent(t *testing.T) {
 	}
 }
 
+func TestHookKeepsOnlyKnownPermissionModes(t *testing.T) {
+	for raw, want := range map[string]string{
+		`{"session_id":"s","hook_event_name":"StopFailure","permission_mode":"bypassPermissions"}`: "bypassPermissions",
+		`{"session_id":"s","hook_event_name":"Stop","permission_mode":"default"}`:                  "default",
+		`{"session_id":"s","hook_event_name":"Stop","permission_mode":"made-up"}`:                  "",
+		`{"session_id":"s","hook_event_name":"Stop"}`:                                              "",
+	} {
+		e, err := normalizeHook([]byte(raw), time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.PermissionMode != want {
+			t.Fatalf("%s: mode %q, want %q", raw, e.PermissionMode, want)
+		}
+	}
+}
+
 func TestHookTitleComesFromTranscriptTitleRecords(t *testing.T) {
 	dir := t.TempDir()
 	id := "9c4e2a71-5d3b-4f8e-a6c2-1b7d0e9f3a54"

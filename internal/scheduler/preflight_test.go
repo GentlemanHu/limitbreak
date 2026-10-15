@@ -118,7 +118,7 @@ func TestDirectPreflightSkipsScreenGatesAndKeepsDesktopState(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	queue(t, e, "s")
+	queueInMode(t, e, "s", "default")
 	refresh(t, e, q, allowed("a"))
 	scan(t, e)
 	if b.count() != 1 || state(t, e, "s").State != domain.Verifying {
@@ -192,5 +192,63 @@ func TestBusySessionWaitsWithoutSending(t *testing.T) {
 	}
 	if b.count() != 0 || state(t, e, "s").State != domain.Cooldown || snap.Jobs[0].Attempts != 0 {
 		t.Fatal("busy session was interrupted or the attempt consumed")
+	}
+}
+
+// queueInMode queues a continue whose StopFailure hook reported mode.
+func queueInMode(t *testing.T, e *Engine, id, mode string) {
+	t.Helper()
+	if err := e.Bind(context.Background(), binding(id)); err != nil {
+		t.Fatal(err)
+	}
+	ev := domain.HookEvent{EventID: newID(), SessionID: id, HookEventName: "StopFailure", Error: "rate_limit_error", ObservedAt: time.Now().UTC(), PermissionMode: mode}
+	if err := e.HandleEvent(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Claude Code holds a cross-session message that asserts no sender mode when
+// the receiver bypasses permissions, and a desktop session cannot approve it.
+// Such sessions, and sessions whose mode is unknown, must get the UI channel.
+func TestDirectChannelFollowsReportedPermissionMode(t *testing.T) {
+	for _, tc := range []struct {
+		mode   string
+		direct bool
+	}{
+		{"bypassPermissions", false},
+		{"plan", false},
+		{"", false},
+		{"default", true},
+		{"acceptEdits", true},
+		{"auto", true},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			e, q, b := fixture(t)
+			queueInMode(t, e, "s", tc.mode)
+			if got := state(t, e, "s").PermissionMode; got != tc.mode {
+				t.Fatalf("permission mode not recorded: %q", got)
+			}
+			refresh(t, e, q, allowed("a"))
+			scan(t, e)
+			if b.count() != 1 {
+				t.Fatalf("send not attempted: calls=%d", b.count())
+			}
+			b.mu.Lock()
+			direct := b.bindings[0].ExecutionDirect
+			b.mu.Unlock()
+			if direct != tc.direct {
+				t.Fatalf("mode %q: direct=%v, want %v", tc.mode, direct, tc.direct)
+			}
+		})
+	}
+}
+
+// A later hook without a mode keeps the last reported one.
+func TestPermissionModeSurvivesHooksWithoutIt(t *testing.T) {
+	e, _, _ := fixture(t)
+	queueInMode(t, e, "s", "bypassPermissions")
+	hook(t, e, "s", "Stop", time.Now().UTC())
+	if got := state(t, e, "s").PermissionMode; got != "bypassPermissions" {
+		t.Fatalf("permission mode lost: %q", got)
 	}
 }

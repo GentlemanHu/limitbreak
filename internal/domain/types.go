@@ -107,6 +107,8 @@ type Session struct {
 	TargetOverride  string         `json:"target_override,omitempty"`
 	NativeResume    string         `json:"native_resume,omitempty"`
 	Priority        int            `json:"priority,omitempty"`
+	// PermissionMode is the last permission mode the session's hooks reported.
+	PermissionMode string `json:"permission_mode,omitempty"`
 	// Facts from the Claude desktop session list (metadata only).
 	InCatalog      bool       `json:"in_catalog,omitempty"`
 	Archived       bool       `json:"archived,omitempty"`
@@ -159,21 +161,24 @@ type Audit struct {
 }
 
 type HookEvent struct {
-	EventID          string         `json:"event_id"`
-	SessionID        string         `json:"session_id"`
-	Cwd              string         `json:"cwd"`
-	HookEventName    string         `json:"hook_event_name"`
-	Error            string         `json:"error"`
-	ErrorDetails     string         `json:"error_details"`
-	Model            string         `json:"model"`
-	NewModel         string         `json:"new_model"`
-	SessionTitle     string         `json:"session_title"`
-	Source           string         `json:"source"`
-	Kind             string         `json:"kind,omitempty"`
-	Reason           string         `json:"reason"`
-	ObservedAt       time.Time      `json:"observed_at"`
-	NotificationType string         `json:"notification_type,omitempty"`
-	Origin           *SessionOrigin `json:"origin,omitempty"`
+	EventID          string    `json:"event_id"`
+	SessionID        string    `json:"session_id"`
+	Cwd              string    `json:"cwd"`
+	HookEventName    string    `json:"hook_event_name"`
+	Error            string    `json:"error"`
+	ErrorDetails     string    `json:"error_details"`
+	Model            string    `json:"model"`
+	NewModel         string    `json:"new_model"`
+	SessionTitle     string    `json:"session_title"`
+	Source           string    `json:"source"`
+	Kind             string    `json:"kind,omitempty"`
+	Reason           string    `json:"reason"`
+	ObservedAt       time.Time `json:"observed_at"`
+	NotificationType string    `json:"notification_type,omitempty"`
+	// PermissionMode is the session's permission mode from hook input; it
+	// decides whether the direct channel can deliver (see DirectAccepted).
+	PermissionMode string         `json:"permission_mode,omitempty"`
+	Origin         *SessionOrigin `json:"origin,omitempty"`
 	// Provider is declared by a configured generic client (for example
 	// "codex"); it selects the account pool when the model alone cannot.
 	Provider string `json:"provider,omitempty"`

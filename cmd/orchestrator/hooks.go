@@ -53,6 +53,9 @@ func normalizeHook(raw []byte, observed time.Time) (domain.HookEvent, error) {
 	e.ObservedAt = observed.UTC()
 	e.Kind = "code" // This executable is installed as a Claude Code hook.
 	e.Origin = nil  // Origin comes from the process environment, never from hook input.
+	if !domain.ValidPermissionMode(e.PermissionMode) {
+		e.PermissionMode = ""
+	}
 	if e.EventID == "" {
 		// Transcript metadata distinguishes separate turns without reading content.
 		if metadata.TranscriptPath != "" {

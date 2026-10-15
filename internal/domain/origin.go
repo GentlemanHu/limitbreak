@@ -66,6 +66,28 @@ const (
 
 func ValidDirectDelivery(v string) bool { return v == "" || v == DirectAuto || v == DirectOff }
 
+// Claude Code permission modes as reported in hook input (permission_mode).
+var permissionModes = map[string]bool{
+	"default": true, "acceptEdits": true, "plan": true, "auto": true, "dontAsk": true, "bubble": true, "bypassPermissions": true,
+}
+
+// ValidPermissionMode accepts "" (not reported) or a known permission mode.
+func ValidPermissionMode(v string) bool { return v == "" || permissionModes[v] }
+
+// DirectAccepted reports whether a session in this permission mode accepts a
+// cross-session message that asserts no sender mode. Claude Code holds such a
+// message for approval when the receiver bypasses permissions (or may, as in
+// plan mode), and a Claude Desktop session cannot ask, so the hold expires
+// undelivered. This client never asserts a sender mode, so only sessions known
+// to run in a prompting mode get the direct channel; unknown modes do not.
+func DirectAccepted(mode string) bool {
+	switch mode {
+	case "default", "acceptEdits", "auto", "dontAsk":
+		return true
+	}
+	return false
+}
+
 // ValidSwitch accepts the shared ""/"auto"/"off" policy switch values used by
 // restore_focus and claude_quiet; "" behaves as "auto".
 func ValidSwitch(v string) bool { return v == "" || v == DirectAuto || v == DirectOff }

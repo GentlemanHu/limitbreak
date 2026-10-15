@@ -420,7 +420,9 @@ func (e *Engine) claim(t *store.Tx, j domain.Job, b domain.Binding, account stri
 	b.ExecutionGeneration = j.Generation
 	b.ExecutionLease = e.owner + "/" + j.ID
 	b.ExecutionUserIdleSeconds = policy.UserIdleSeconds
-	b.ExecutionDirect = policy.DirectDelivery != domain.DirectOff
+	// A session that bypasses permissions (or whose mode is unknown) would hold
+	// the direct message for an approval nobody can give, so it gets the UI channel.
+	b.ExecutionDirect = policy.DirectDelivery != domain.DirectOff && domain.DirectAccepted(s.PermissionMode)
 	b.ExecutionRestoreFocus = policy.RestoreFocus != domain.DirectOff
 	b.ExecutionQuietSeconds = 0
 	if policy.ClaudeQuiet != domain.DirectOff {

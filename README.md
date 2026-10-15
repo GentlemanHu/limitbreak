@@ -44,7 +44,7 @@ Long Claude Code runs stop at the 5-hour or weekly limit. Claude's own auto-resu
 | Quota sources | Claude (OAuth usage), Codex, Antigravity, xAI and any provider CLIProxyAPI's quota plugin exposes; custom HTTP sources via config. |
 | Reset signals | Built-in [Codex Resets](https://codex-resets.com) feed and a signed `POST /api/signals` webhook. A signal makes the matching accounts be re-queried at once (and again after 3 and 10 minutes); it is never treated as proof that quota is back. |
 | Throttled queries | When the usage endpoint itself answers HTTP 429, LimitBreak waits for the recorded reset plus a safety margin and tries **once** (`reset_fallback`, on by default). |
-| Executors | Claude Desktop (direct socket; background wake then direct socket; deep link + Accessibility as the last resort), terminal `claude` (direct socket, tmux, or background `claude -p --resume`), and any other client through a configured command (`clients[]`). |
+| Executors | Claude Desktop (direct socket; background wake then direct socket; deep link + Accessibility as the last resort, and the only channel for sessions in bypass-permissions or unreported permission mode, which would hold a direct message for approval), terminal `claude` (direct socket, tmux, or background `claude -p --resume`), and any other client through a configured command (`clients[]`). |
 | UI | Native SwiftUI workbench: masonry quota cards with real provider icons, session list synced with the Claude Desktop sidebar, activity log, diagnostics. Dock icon while the workbench is open. |
 | Integrations | Local token-protected HTTP API, SSE events, scoped MCP server for other agents, `orchestrator event` / `orchestrator signal` CLIs. |
 
