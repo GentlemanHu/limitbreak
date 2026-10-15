@@ -1,0 +1,63 @@
+# Build and release output
+runtime/
+.build/
+bin/
+dist/
+bridge/.build/
+web/node_modules/
+web/dist/
+*.app/
+*.zip
+SHA256SUMS
+
+# Python
+__pycache__/
+*.pyc
+
+# Local AI tooling / editor state
+.claude/
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# Secrets and signing material
+.env
+.env.*
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
+*.pem
+*.key
+
+# Local runtime data
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite*
+*.db
+*.log
+
+# Local-only developer tools and notes (not part of the release or CI)
+docs/PROMOTION.md
+menubar/
+bridge/build.sh
+scripts/build.sh
+scripts/start.sh
+scripts/preview.sh
+scripts/package.py
+scripts/install_launchd.py
+scripts/verify_identity_stability.py
+scripts/RedactScreenshot.swift
+
+# Local screenshots (published screenshots live in docs/images/)
+screenshots/
+shots/
+Screenshots/
+Screen Shot *.png
+Screenshot *.png

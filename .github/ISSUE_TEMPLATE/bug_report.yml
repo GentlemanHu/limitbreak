@@ -1,0 +1,51 @@
+name: Bug report
+description: Something did not continue, was sent twice, or the app misbehaved.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please do **not** paste tokens, management keys, `config.json`, or conversation content.
+  - type: input
+    id: version
+    attributes:
+      label: LimitBreak version
+      description: Shown in the workbench sidebar or `Contents/Info.plist`.
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      placeholder: macOS 26.0, Apple Silicon
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Claude client
+      options:
+        - Claude Desktop (Code tab)
+        - Terminal claude in tmux
+        - Terminal claude (no tmux)
+    validations:
+      required: true
+  - type: input
+    id: cliproxyapi
+    attributes:
+      label: CLIProxyAPI version
+      placeholder: v8.0.29
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the session status card text and the "发送方式 / delivery" shown on the recovery card.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Relevant lines from the workbench Diagnostics and Activity pages. Review them before pasting.
+      render: text

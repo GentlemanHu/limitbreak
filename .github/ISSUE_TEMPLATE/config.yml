@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/GentlemanHu/limitbreak/security/advisories/new
+    about: Report privately; see SECURITY.md.
+  - name: CLIProxyAPI questions
+    url: https://github.com/router-for-me/CLIProxyAPI
+    about: Accounts, credentials and proxying are handled by CLIProxyAPI.

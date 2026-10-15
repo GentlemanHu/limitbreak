@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LimitBreak — auto-continue Claude Code after the usage limit resets (macOS)</title>
+<meta name="description" content="LimitBreak is a free, open-source macOS menu-bar app that watches real Claude, Codex and Antigravity quota through CLIProxyAPI and continues your Claude Code session the moment the 5-hour or weekly limit resets.">
+<meta name="keywords" content="Claude Code, usage limit, rate limit, auto resume, auto continue, 5-hour limit, weekly limit, CLIProxyAPI, macOS, menu bar, Claude Desktop, quota monitor, 额度守护, 自动继续">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://gentlemanhu.github.io/limitbreak/">
+<link rel="alternate" hreflang="en" href="https://gentlemanhu.github.io/limitbreak/">
+<link rel="alternate" hreflang="zh-Hans" href="https://gentlemanhu.github.io/limitbreak/#zh">
+<meta property="og:type" content="website">
+<meta property="og:title" content="LimitBreak — keep Claude Code going past the usage limit">
+<meta property="og:description" content="Real quota, same session, silent delivery. A native macOS app that sends “continue” when quota is really back.">
+<meta property="og:url" content="https://gentlemanhu.github.io/limitbreak/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="LimitBreak for macOS">
+<meta name="twitter:description" content="Auto-continue Claude Code sessions after the 5-hour or weekly limit resets.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "LimitBreak",
+  "alternateName": "额度守护",
+  "operatingSystem": "macOS 14 or later",
+  "applicationCategory": "DeveloperApplication",
+  "license": "https://opensource.org/licenses/MIT",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "Watches real AI-provider quota through CLIProxyAPI and continues Claude Code sessions when the usage limit resets.",
+  "codeRepository": "https://github.com/GentlemanHu/limitbreak"
+}
+</script>
+<style>
+  :root { color-scheme: light dark; --fg:#111; --muted:#555; --bg:#fafafa; --card:#fff; --line:#e5e5e5; --accent:#d97757; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#eee; --muted:#aaa; --bg:#111; --card:#1b1b1b; --line:#2a2a2a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif; color:var(--fg); background:var(--bg); }
+  main { max-width: 960px; margin: 0 auto; padding: 48px 20px 80px; }
+  header h1 { font-size: 44px; line-height:1.1; margin: 0 0 12px; letter-spacing:-0.02em; }
+  header p { font-size: 20px; color: var(--muted); margin: 0 0 24px; }
+  .cta a { display:inline-block; margin: 0 10px 10px 0; padding: 10px 18px; border-radius: 10px; text-decoration:none; font-weight:600; }
+  .primary { background: var(--accent); color:#fff; }
+  .secondary { border:1px solid var(--line); color: var(--fg); }
+  pre { background: var(--card); border:1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x:auto; font-size:14px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 28px 0; }
+  .card { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin:0; color: var(--muted); font-size: 15px; }
+  h2 { margin-top: 48px; }
+  footer { margin-top: 64px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>LimitBreak</h1>
+    <p>Hit the Claude Code usage limit, walk away. LimitBreak continues the same session the moment real quota comes back.</p>
+    <div class="cta">
+      <a class="primary" href="https://github.com/GentlemanHu/limitbreak/releases/latest">Download for macOS</a>
+      <a class="secondary" href="https://github.com/GentlemanHu/limitbreak">Source on GitHub</a>
+    </div>
+    <pre>curl -fsSL https://raw.githubusercontent.com/GentlemanHu/limitbreak/main/scripts/install.sh | LIMITBREAK_REPO=GentlemanHu/limitbreak bash</pre>
+  </header>
+
+  <section class="grid" aria-label="Features">
+    <div class="card"><h3>Real quota</h3><p>5-hour, weekly and per-model windows read through <a href="https://github.com/router-for-me/CLIProxyAPI">CLIProxyAPI</a>. Unknown stays unknown — never shown as 0%.</p></div>
+    <div class="card"><h3>Same session, same model</h3><p>Only the continue text is sent. Model, account and permission mode are left alone.</p></div>
+    <div class="card"><h3>Silent delivery</h3><p>Uses Claude Code's own message socket: no window switching, works with the screen locked. A closed session is woken in the background first.</p></div>
+    <div class="card"><h3>Live clocks</h3><p>See the next quota check and the expected auto-continue time for every session.</p></div>
+    <div class="card"><h3>Safe by default</h3><p>Explicit consent, emergency pause, hourly caps, circuit breaker, and no resend on uncertain results.</p></div>
+    <div class="card"><h3>Extensible</h3><p>Pluggable quota sources, session observers and executors. Codex and Antigravity quota already observed.</p></div>
+  </section>
+
+  <h2>“LimitBreak is damaged and can't be opened”?</h2>
+  <p>Builds that are not notarized by Apple get this message after a browser download. The app is fine; remove the quarantine attribute once:</p>
+  <pre>xattr -dr com.apple.quarantine /Applications/LimitBreak.app</pre>
+
+  <h2 id="zh" lang="zh-Hans">额度守护 · 中文</h2>
+  <div lang="zh-Hans">
+    <p>撞上 Claude Code 的 5 小时或每周额度上限后，LimitBreak 通过 CLIProxyAPI 查看真实额度，等额度真正恢复，就在原来的会话里发送「继续」。只发继续文案，不改模型、不抢键盘，锁屏也能后台直发；每个会话都有「下次查询」和「预计自动继续」倒计时。免费开源（MIT），支持 Apple Silicon 与 Intel，需要 macOS 14 及以上。</p>
+    <p>提示「已损坏」时执行：<code>xattr -dr com.apple.quarantine /Applications/LimitBreak.app</code></p>
+  </div>
+
+  <footer>
+    MIT licensed. Quota comes from <a href="https://github.com/router-for-me/CLIProxyAPI">CLIProxyAPI</a> (MIT, router-for-me) — thank you. LimitBreak is an independent project and is not affiliated with Anthropic, OpenAI, Google or CLIProxyAPI. Claude is a trademark of Anthropic.
+  </footer>
+</main>
+</body>
+</html>

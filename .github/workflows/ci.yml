@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-and-build:
+    name: Verify + ad-hoc app build
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Environment
+        run: |
+          # Scripts default GOCACHE/GOPATH to .build/; reuse setup-go's cached locations instead.
+          {
+            echo "GOCACHE=$(go env GOCACHE)"
+            echo "GOPATH=$(go env GOPATH)"
+            echo "TMPDIR=$RUNNER_TEMP/"
+          } >> "$GITHUB_ENV"
+          go version
+          swiftc --version
+          xcrun --show-sdk-path
+
+      - name: Shell syntax
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+
+      - name: Verify (go vet, go test -race, Python tests, Swift compile and native tests)
+        run: bash scripts/verify.sh
+
+      - name: Build ad-hoc app (native arm64)
+        env:
+          QSO_ALLOW_ADHOC: "1"
+          QSO_CREATE_ZIP: "1"
+        run: |
+          QSO_APP_OUTPUT="$RUNNER_TEMP/app/LimitBreak.app" bash scripts/build-app.sh
+          ls -l "$RUNNER_TEMP/app"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LimitBreak-adhoc-${{ github.sha }}
+          path: ${{ runner.temp }}/app/LimitBreak-*.zip
+          if-no-files-found: error
+          retention-days: 14
