@@ -14,13 +14,12 @@ struct WorkbenchPolicySettings: View {
     @State private var digest: String?
     @State private var busy = false
     @State private var message = ""
+    @State private var expanded = false
+    // Concurrency and the send interval live on the hosting-rules page.
     private let fields: [PolicyField] = [
-        .init(id: "max_running", title: "全局并发", bounds: 1...16),
-        .init(id: "max_per_account", title: "每账号并发", bounds: 1...16),
         .init(id: "safety_seconds", title: "重置提示安全余量（秒，不替代新证据）", bounds: 0...3600),
         .init(id: "freshness_seconds", title: "证据有效期（秒）", bounds: 1...900),
         .init(id: "verify_seconds", title: "提交回执核验期（秒）", bounds: 5...300),
-        .init(id: "min_send_interval_seconds", title: "最小发送间隔（秒）", bounds: 30...86400),
         .init(id: "long_probe_seconds", title: "长周期默认复查（秒）", bounds: 60...86400),
         .init(id: "unknown_probe_seconds", title: "未知额度复查（秒）", bounds: 60...86400),
         .init(id: "early_probe_seconds", title: "受限额度提前复查周期（秒）", bounds: 30...3600, fallback: 120),
@@ -32,26 +31,40 @@ struct WorkbenchPolicySettings: View {
         .init(id: "max_auto_resumes_per_hour", title: "每会话每小时自动恢复上限", bounds: 1...100, fallback: 3),
     ]
     var body: some View {
-        DisclosureGroup("高级调度参数") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("一般无需修改。额度接近重置时会更频繁地复查，只有读到真实的新额度才会发送；来源自身的限流不会被绕过。").font(.caption).foregroundStyle(.secondary)
-                ForEach(fields) { field in
-                    HStack {
-                        Text(field.title).font(.callout)
-                        Spacer()
-                        TextField("数值", text: Binding(get: { values[field.id] ?? "" }, set: { values[field.id] = $0 }))
-                            .textFieldStyle(.roundedBorder).frame(width: 90).disabled(busy)
-                    }
-                }
+        GroupBox { VStack(alignment: .leading, spacing: 0) {
+            Button {
+                if !expanded { load() }
+                withAnimation { expanded.toggle() }
+            } label: {
                 HStack {
-                    Button("放弃修改") { load() }.disabled(busy)
-                    Button(busy ? "保存中…" : "保存参数") { Task { await save() } }.buttonStyle(.borderedProminent)
-                        .disabled(busy || digest == nil || !runtime.localServiceFresh)
+                    Image(systemName: "chevron.right").rotationEffect(.degrees(expanded ? 90 : 0))
+                    Text("高级调度参数").font(.headline)
+                    Spacer()
+                    Text(expanded ? "收起" : "展开").font(.caption).foregroundStyle(.secondary)
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain).padding(.horizontal, 10).padding(.top, 8).padding(.bottom, expanded ? 0 : 8)
+            if expanded { form }
+        } }.onAppear { load() }
+    }
+    private var form: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("一般无需修改。并发与发送间隔在「托管规则」页。额度接近重置时会更频繁地复查，只有读到真实的新额度才会发送；来源自身的限流不会被绕过。").font(.caption).foregroundStyle(.secondary)
+            ForEach(fields) { field in
+                HStack {
+                    Text(field.title).font(.callout)
+                    Spacer()
+                    TextField("数值", text: Binding(get: { values[field.id] ?? "" }, set: { values[field.id] = $0 }))
+                        .textFieldStyle(.roundedBorder).frame(width: 90).disabled(busy)
                 }
-                if !message.isEmpty { Text(message).font(.caption).foregroundStyle(.secondary) }
-                Text("只保存改动的字段；如果其他地方（例如 MCP）同时改过规则，会提示你重新读取，不会覆盖。").font(.caption).foregroundStyle(.secondary)
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
-        }.onAppear { load() }
+            }
+            HStack {
+                Button("放弃修改") { load() }.disabled(busy)
+                Button(busy ? "保存中…" : "保存参数") { Task { await save() } }.buttonStyle(.borderedProminent)
+                    .disabled(busy || digest == nil || !runtime.localServiceFresh)
+            }
+            if !message.isEmpty { Text(message).font(.caption).foregroundStyle(.secondary) }
+            Text("只保存改动的字段；如果其他地方（例如 MCP）同时改过规则，会提示你重新读取，不会覆盖。").font(.caption).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
     }
     private func load() {
         guard let snapshot = runtime.snapshot else { message = "尚未取得规则"; return }

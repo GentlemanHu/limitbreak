@@ -17,6 +17,9 @@ struct WorkbenchHosting: View {
     @State private var restoreFocus = true
     @State private var claudeQuiet = true
     @State private var quietSeconds = "120"
+    @State private var maxRunning = "2"
+    @State private var perAccount = "1"
+    @State private var sendInterval = "120"
     @State private var aliases: [AliasRow] = []
     @State private var original: [String: JSONValue] = [:]
     @State private var digest: String?
@@ -60,7 +63,7 @@ struct WorkbenchHosting: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("后台静默直发（推荐）", isOn: $direct)
                         Text("继续文案通过 Claude 自带的会话消息端口直接送达：不切换窗口、不抢键盘，锁屏时也能发送。会话进程没有运行时（例如 Claude 里还没打开过该会话），LimitBreak 先在后台打开这个会话让 Claude 启动它的进程，最多等 20 秒，然后同样静默直发；只有进程始终没有启动，才改用界面发送（打开会话并输入）。").font(.caption).foregroundStyle(.secondary)
-                        Text("若会话处于「跳过权限确认」模式，Claude 会把外来消息放进待批准列表，需要你在会话里点一次批准；LimitBreak 不会伪造权限模式，也不会因此重发。").font(.caption).foregroundStyle(.secondary)
+                        Text("若会话处于「跳过权限确认」或计划模式，Claude 会扣下外来消息等你批准，所以这类会话改用界面发送；LimitBreak 不会伪造权限模式，也不会因此重发。").font(.caption).foregroundStyle(.secondary)
                         Divider()
                         Toggle("打开会话后把焦点还给原来的应用（推荐）", isOn: $restoreFocus)
                         Text("后台唤醒或界面发送需要在 Claude 里打开会话时，记下你当时正在用的应用，完成后立即切回去。").font(.caption).foregroundStyle(.secondary)
@@ -71,6 +74,14 @@ struct WorkbenchHosting: View {
                             TextField("120", text: $quietSeconds).textFieldStyle(.roundedBorder).frame(width: 80).disabled(!claudeQuiet)
                         }
                         Text("打开会话会切换 Claude 里当前显示的会话标签。若 Claude 正在最前面且你最近操作过，LimitBreak 等你离开 Claude 或空闲这么久再唤醒或发送；会话进程已在运行时的静默直发不受影响。").font(.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                }
+                GroupBox("并发与发送节奏") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        numberRow("全局并发（同时运行的会话数）", text: $maxRunning)
+                        numberRow("每账号并发（同一账号同时运行的会话数）", text: $perAccount)
+                        numberRow("两次发送的最小间隔（秒）", text: $sendInterval)
+                        Text("多个会话同时到点也不会互相冲突：每次只发送一个，界面发送全程独占 Claude 窗口，两次发送之间至少隔上面的秒数。用同一账号的会话超过「每账号并发」时排队，前一个本回合结束后再继续；调高它会让同一账号的额度被同时消耗。").font(.caption).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
                 }
                 GroupBox("模型映射") {
@@ -118,6 +129,17 @@ struct WorkbenchHosting: View {
             Button("返回", role: .cancel) {}
         }
     }
+    private func numberRow(_ title: String, text: Binding<String>) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField("数值", text: text).textFieldStyle(.roundedBorder).frame(width: 80)
+        }
+    }
+    private func policyNumber(_ snapshot: TraySnapshot, _ key: String, fallback: Int) -> String {
+        let observed = Int(snapshot.policy[key]?.number ?? 0)
+        return String(observed == 0 ? fallback : observed)
+    }
     private var unmatched: [String] {
         Array(Set(runtime.sessions.filter { !$0.model.isEmpty && $0.pool?.basis == "none" }.map(\.model))).sorted()
     }
@@ -133,6 +155,9 @@ struct WorkbenchHosting: View {
         claudeQuiet = snapshot.policy["claude_quiet"]?.string != "off"
         let quiet = Int(snapshot.policy["claude_quiet_seconds"]?.number ?? 0)
         quietSeconds = String(quiet == 0 ? 120 : quiet)
+        maxRunning = policyNumber(snapshot, "max_running", fallback: 2)
+        perAccount = policyNumber(snapshot, "max_per_account", fallback: 1)
+        sendInterval = policyNumber(snapshot, "min_send_interval_seconds", fallback: 120)
         aliases = snapshot.modelAliases.sorted { $0.key < $1.key }.map { AliasRow(from: $0.key, to: $0.value) }
         original = current() ?? [:]
         digest = snapshot.policy_digest
@@ -140,17 +165,21 @@ struct WorkbenchHosting: View {
     }
     private func current() -> [String: JSONValue]? {
         guard let seconds = Int(grace.trimmingCharacters(in: .whitespaces)), (1...3600).contains(seconds),
-              let quiet = Int(quietSeconds.trimmingCharacters(in: .whitespaces)), (1...3600).contains(quiet) else { return nil }
+              let quiet = Int(quietSeconds.trimmingCharacters(in: .whitespaces)), (1...3600).contains(quiet),
+              let running = Int(maxRunning.trimmingCharacters(in: .whitespaces)), (1...16).contains(running),
+              let account = Int(perAccount.trimmingCharacters(in: .whitespaces)), (1...16).contains(account),
+              let interval = Int(sendInterval.trimmingCharacters(in: .whitespaces)), (30...86400).contains(interval) else { return nil }
         var map: [String: JSONValue] = [:]
         for row in aliases where !(row.from.isEmpty && row.to.isEmpty) {
             map[GuardPolicyPatch.normalizeModel(row.from)] = .string(row.to.trimmingCharacters(in: .whitespaces))
         }
         return ["default_host_mode": .string(mode.rawValue), "continue_message": .string(message), "native_grace_seconds": .number(Double(seconds)), "model_aliases": .object(map),
                 "direct_delivery": .string(direct ? "auto" : "off"), "reset_fallback": .string(resetFallback ? "auto" : "off"),
-                "restore_focus": .string(restoreFocus ? "auto" : "off"), "claude_quiet": .string(claudeQuiet ? "auto" : "off"), "claude_quiet_seconds": .number(Double(quiet))]
+                "restore_focus": .string(restoreFocus ? "auto" : "off"), "claude_quiet": .string(claudeQuiet ? "auto" : "off"), "claude_quiet_seconds": .number(Double(quiet)),
+                "max_running": .number(Double(running)), "max_per_account": .number(Double(account)), "min_send_interval_seconds": .number(Double(interval))]
     }
     private func save() async {
-        guard let values = current() else { status = "宽限期与 Claude 空闲秒数须为 1 至 3600 的整数"; return }
+        guard let values = current() else { status = "宽限期与 Claude 空闲秒数须为 1 至 3600、并发须为 1 至 16、发送间隔须为 30 至 86400 的整数"; return }
         let changes = values.filter { original[$0.key] != $0.value }
         guard !changes.isEmpty else { status = "没有修改"; return }
         busy = true; defer { busy = false }
