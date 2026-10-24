@@ -46,6 +46,8 @@ __pycache__/
 # Local-only developer tools and notes (not part of the release or CI)
 docs/PROMOTION.md
 menubar/
+promo/
+*.mp4
 bridge/build.sh
 scripts/build.sh
 scripts/start.sh

@@ -2,7 +2,7 @@
 
 All notable changes are listed here. Versions follow the `VERSION` file and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.1] - 2026-10-24
 
 ### Fixed
 - Auto-continue never fired after a Codex usage limit routed through CLIProxyAPI. CLIProxyAPI keeps a model's `unavailable`/`exceeded` flags on the credential until a request through it succeeds, and those flags kept the account "limited" even after their own reset passed and the official usage endpoint reported a fresh allowance. Model-level limits whose reset has passed now yield to fresh live quota; limits with a future or unknown reset still hold.

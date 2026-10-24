@@ -23,7 +23,7 @@ type Backend interface {
 }
 
 func New(backend Backend) *mcp.Server {
-	s := mcp.NewServer(&mcp.Implementation{Name: "quota-session-orchestrator", Version: "1.0.0"}, nil)
+	s := mcp.NewServer(&mcp.Implementation{Name: "quota-session-orchestrator", Version: "1.0.1"}, nil)
 	// SDK input/output schema and unmarshal errors can contain parameter values.
 	// Redact at the protocol boundary too, not just in the daemon HTTP client.
 	s.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
