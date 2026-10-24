@@ -5,6 +5,7 @@ import SwiftUI
 // 5-hour and weekly usage, the sessions waiting, and the last few events.
 struct TrayPanel: View {
     @ObservedObject var runtime: TrayRuntime
+    @ObservedObject private var lang = LanguageManager.shared
     @State private var refreshing = false
     private static let accountLimit = 6
     var body: some View {
@@ -40,9 +41,9 @@ struct TrayPanel: View {
         return ("eye.circle.fill", .teal)
     }
     private var statusLine: String {
-        if [.starting, .checking].contains(runtime.sourcePhase) { return "正在读取额度来源…" }
-        if !runtime.localServiceFresh { return "等待本地服务" }
-        if !runtime.proxyConnected { return "额度来源未连接" }
+        if [.starting, .checking].contains(runtime.sourcePhase) { return L("正在读取额度来源…", "Checking quota sources…") }
+        if !runtime.localServiceFresh { return L("等待本地服务", "Waiting for local service") }
+        if !runtime.proxyConnected { return L("额度来源未连接", "Quota source not connected") }
         return runtime.hostingSummary
     }
 
@@ -50,8 +51,9 @@ struct TrayPanel: View {
         HStack(spacing: 10) {
             Image(systemName: "wand.and.stars").foregroundStyle(runtime.defaultHosted ? Color.accentColor : .secondary)
             VStack(alignment: .leading, spacing: 1) {
-                Text("默认托管").font(.callout)
-                Text("只影响「跟随全局」的 \(runtime.followingSessionCount) 个会话；单独设置的不受影响").font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                Text(L("默认托管", "Default Hosting")).font(.callout)
+                Text(L("只影响「跟随全局」的 \(runtime.followingSessionCount) 个会话；单独设置的不受影响",
+                       "Applies only to \(runtime.followingSessionCount) session(s) following global; custom settings unaffected")).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer()
             DefaultHostingToggle(runtime: runtime, showsLabel: false).controlSize(.small)
@@ -64,20 +66,21 @@ struct TrayPanel: View {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 Text(runtime.error).font(.caption).lineLimit(3)
                 Spacer()
-                Button { runtime.error = "" } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help("关闭提示")
+                Button { runtime.error = "" } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help(L("关闭提示", "Dismiss"))
             }
         }
         if runtime.localServiceFresh && !runtime.paused && !runtime.automationConsented && runtime.hostedSessionCount > 0 {
             HStack(spacing: 8) {
                 Image(systemName: "hand.raised.fill").foregroundStyle(.orange)
-                Text("\(runtime.hostedSessionCount) 个会话设为托管，但尚未允许自动继续").font(.caption)
+                Text(L("\(runtime.hostedSessionCount) 个会话设为托管，但尚未允许自动继续",
+                       "\(runtime.hostedSessionCount) session(s) hosted, but auto-continue unauthorized")).font(.caption)
                 Spacer()
                 ConsentButton(runtime: runtime).controlSize(.small)
             }
         }
         if runtime.attentionCount > 0 || setupIncomplete {
             Button { runtime.openWorkbench(runtime.attentionCount > 0 ? .sessions : .overview) } label: {
-                Label(runtime.attentionCount > 0 ? "\(runtime.attentionCount) 个会话需要处理" : "还有设置步骤未完成", systemImage: "exclamationmark.triangle.fill")
+                Label(runtime.attentionCount > 0 ? L("\(runtime.attentionCount) 个会话需要处理", "\(runtime.attentionCount) session(s) need attention") : L("还有设置步骤未完成", "Setup incomplete"), systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
         }
@@ -86,10 +89,10 @@ struct TrayPanel: View {
 
     private var stats: some View {
         HStack(spacing: 8) {
-            stat("托管", runtime.hostedSessionCount, icon: "bolt.fill", color: runtime.autoSendArmed ? .blue : .secondary, target: .sessions)
-            stat("监控", runtime.monitoredSessionCount, icon: "eye.fill", color: .teal, target: .sessions)
-            stat("等待恢复", runtime.waitingCount, icon: "hourglass", color: runtime.waitingCount > 0 ? .indigo : .secondary, target: .recovery)
-            stat("需处理", runtime.attentionCount, icon: "exclamationmark.triangle.fill", color: runtime.attentionCount > 0 ? .orange : .secondary, target: .recovery)
+            stat(L("托管", "Hosted"), runtime.hostedSessionCount, icon: "bolt.fill", color: runtime.autoSendArmed ? .blue : .secondary, target: .sessions)
+            stat(L("监控", "Monitor"), runtime.monitoredSessionCount, icon: "eye.fill", color: .teal, target: .sessions)
+            stat(L("等待恢复", "Waiting"), runtime.waitingCount, icon: "hourglass", color: runtime.waitingCount > 0 ? .indigo : .secondary, target: .recovery)
+            stat(L("需处理", "Attention"), runtime.attentionCount, icon: "exclamationmark.triangle.fill", color: runtime.attentionCount > 0 ? .orange : .secondary, target: .recovery)
         }
     }
     private func stat(_ title: String, _ value: Int, icon: String, color: Color, target: WorkbenchSection) -> some View {
@@ -110,17 +113,17 @@ struct TrayPanel: View {
         if !accounts.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("额度账号").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(L("额度账号", "Quota Accounts")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     Spacer()
                     if let next = runtime.nextCheck, runtime.waitingCount > 0, next > runtime.now {
-                        Label("下次复查 " + trayDuration(next.timeIntervalSince(runtime.now)), systemImage: "clock").font(.caption2.monospacedDigit()).foregroundStyle(.blue)
+                        Label(L("下次复查 ", "Next check ") + localizedDuration(next.timeIntervalSince(runtime.now)), systemImage: "clock").font(.caption2.monospacedDigit()).foregroundStyle(.blue)
                     }
                 }
                 ForEach(Array(accounts.prefix(Self.accountLimit))) { account in
                     Button { runtime.openWorkbench(.resources) } label: { accountRow(account) }.buttonStyle(.plain)
                 }
                 if accounts.count > Self.accountLimit {
-                    Button("还有 \(accounts.count - Self.accountLimit) 个账号 →") { runtime.openWorkbench(.resources) }.buttonStyle(.link).font(.caption)
+                    Button(L("还有 \(accounts.count - Self.accountLimit) 个账号 →", "More accounts (\(accounts.count - Self.accountLimit)) →")) { runtime.openWorkbench(.resources) }.buttonStyle(.link).font(.caption)
                 }
             }
         }
@@ -143,8 +146,8 @@ struct TrayPanel: View {
                     QuotaStateBadge(text: badge.0, color: badge.1)
                 }
                 HStack(spacing: 10) {
-                    QuotaBar(window: layout.worstShort, placeholder: "5 小时", now: runtime.now, compact: true)
-                    QuotaBar(window: layout.worstWeekly, placeholder: "每周", now: runtime.now, compact: true)
+                    QuotaBar(window: layout.worstShort, placeholder: L("5 小时", "5 Hours"), now: runtime.now, compact: true)
+                    QuotaBar(window: layout.worstWeekly, placeholder: L("每周", "Weekly"), now: runtime.now, compact: true)
                 }
             }
         }.contentShape(Rectangle())
@@ -155,15 +158,15 @@ struct TrayPanel: View {
         if !waiting.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("等待中的会话").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(L("等待中的会话", "Waiting Sessions")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     Spacer()
-                    Button { runtime.showRecoveryWindow?() } label: { Label("恢复任务面板", systemImage: "timer") }
-                        .buttonStyle(.borderless).font(.caption).help("在独立窗口中查看所有恢复任务的实时倒计时")
+                    Button { runtime.showRecoveryWindow?() } label: { Label(L("恢复任务面板", "Recovery Panel"), systemImage: "timer") }
+                        .buttonStyle(.borderless).font(.caption).help(L("在独立窗口中查看所有恢复任务的实时倒计时", "Open live recovery countdowns in a floating window"))
                 }
                 ForEach(Array(waiting.prefix(4))) { session in
                     Button { runtime.openWorkbench(.recovery) } label: { sessionRow(session) }.buttonStyle(.plain)
                 }
-                if waiting.count > 4 { Text("另有 \(waiting.count - 4) 个").font(.caption2).foregroundStyle(.secondary) }
+                if waiting.count > 4 { Text(L("另有 \(waiting.count - 4) 个", "\(waiting.count - 4) more")).font(.caption2).foregroundStyle(.secondary) }
             }
         }
     }
@@ -171,22 +174,25 @@ struct TrayPanel: View {
         HStack(spacing: 8) {
             Circle().fill(session.state == "NEEDS_ATTENTION" ? Color.orange : Color.blue).frame(width: 6, height: 6)
             Text(session.displayTitle).font(.callout).lineLimit(1)
-            Text(session.host?.mode == "hosted" || session.host?.mode == "legacy" ? "托管" : "监控").font(.caption2).foregroundStyle(.secondary)
+            let modeText = session.host?.mode == "hosted" || session.host?.mode == "legacy" ? L("托管", "Hosted") : L("监控", "Monitor")
+            Text(modeText).font(.caption2).foregroundStyle(.secondary)
                 .padding(.horizontal, 5).background(.quaternary, in: Capsule())
             Spacer()
             let clock = runtime.clock(for: session)
             if session.state == "COOLDOWN", let at = clock.expected, at > runtime.now {
-                Label(trayDuration(at.timeIntervalSince(runtime.now)), systemImage: "clock.badge.checkmark").font(.caption.monospacedDigit()).foregroundStyle(.indigo)
-                    .help("预计 " + at.formatted(date: .omitted, time: .shortened) + " 恢复后自动继续，以复查为准")
+                Label(localizedDuration(at.timeIntervalSince(runtime.now)), systemImage: "clock.badge.checkmark").font(.caption.monospacedDigit()).foregroundStyle(.indigo)
+                    .help(L("预计 " + at.formatted(date: .omitted, time: .shortened) + " 恢复后自动继续，以复查为准",
+                            "Estimated continue at " + at.formatted(date: .omitted, time: .shortened) + ", subject to quota check"))
             } else if clock.block != .none {
-                Label(clock.block == .concurrency ? "等并发名额" : clock.block == .desktop ? "等桌面就绪" : "宽限期", systemImage: "pause.circle")
+                let blockTitle = clock.block == .concurrency ? L("等并发名额", "Concurrency limit") : clock.block == .desktop ? L("等桌面就绪", "Waiting for desktop") : L("宽限期", "Grace period")
+                Label(blockTitle, systemImage: "pause.circle")
                     .font(.caption).foregroundStyle(.orange).help(clock.blockText)
             } else if let at = clock.nextCheck, at > runtime.now {
-                Label(trayDuration(at.timeIntervalSince(runtime.now)), systemImage: "arrow.triangle.2.circlepath").font(.caption.monospacedDigit()).foregroundStyle(.secondary).help("下次查询额度")
+                Label(localizedDuration(at.timeIntervalSince(runtime.now)), systemImage: "arrow.triangle.2.circlepath").font(.caption.monospacedDigit()).foregroundStyle(.secondary).help(L("下次查询额度", "Next quota check"))
             } else if session.state == "VERIFYING", let channel = DeliveryChannel(job: runtime.lastDelivery(for: session)) {
                 Label(channel.title(terminal: session.origin?.app == "terminal"), systemImage: channel.icon).font(.caption).foregroundStyle(channel.color)
-                    .help("已发送，等待会话确认：" + channel.detail(terminal: session.origin?.app == "terminal"))
-            } else { Text(trayState(session.state)).font(.caption).foregroundStyle(.secondary) }
+                    .help(L("已发送，等待会话确认：", "Sent, waiting for turn receipt: ") + channel.detail(terminal: session.origin?.app == "terminal"))
+            } else { Text(localizedState(session.state)).font(.caption).foregroundStyle(.secondary) }
         }.contentShape(Rectangle())
     }
 
@@ -194,7 +200,7 @@ struct TrayPanel: View {
         let recent = Array((runtime.snapshot?.audit ?? []).suffix(3).reversed())
         if !recent.isEmpty {
             VStack(alignment: .leading, spacing: 5) {
-                Text("最近活动").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(L("最近活动", "Recent Activity")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 ForEach(recent) { item in
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(trayAgo(trayDate(item.time), now: runtime.now)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).frame(width: 58, alignment: .leading)
@@ -207,14 +213,14 @@ struct TrayPanel: View {
 
     private var footer: some View {
         HStack {
-            Button { runtime.openWorkbench() } label: { Label("工作台", systemImage: "macwindow") }
-            Button { runtime.showRecoveryWindow?() } label: { Label("恢复任务", systemImage: "timer") }.help("独立窗口：所有恢复任务的实时倒计时")
-            Button { refreshing = true; Task { await runtime.refreshQuota(); refreshing = false } } label: { Label(refreshing ? "查询中" : "刷新", systemImage: "arrow.clockwise") }
-                .disabled(refreshing || !runtime.daemonRunning).help("立即重新查询额度（同一账号 60 秒内只查一次，上游限流时自动退避）")
-            Button { runtime.toggleAwake() } label: { Label("防睡眠", systemImage: runtime.awake ? "cup.and.saucer.fill" : "cup.and.saucer") }
-                .tint(runtime.awake ? .blue : nil).help(runtime.awake ? "已阻止系统闲置睡眠；点按恢复" : "阻止系统闲置睡眠，让等待中的会话能按时继续")
+            Button { runtime.openWorkbench() } label: { Label(L("工作台", "Workbench"), systemImage: "macwindow") }
+            Button { runtime.showRecoveryWindow?() } label: { Label(L("恢复任务", "Recovery"), systemImage: "timer") }.help(L("独立窗口：所有恢复任务的实时倒计时", "Open live recovery countdowns in a separate window"))
+            Button { refreshing = true; Task { await runtime.refreshQuota(); refreshing = false } } label: { Label(refreshing ? L("查询中", "Refreshing…") : L("刷新", "Refresh"), systemImage: "arrow.clockwise") }
+                .disabled(refreshing || !runtime.daemonRunning).help(L("立即重新查询额度（同一账号 60 秒内只查一次，上游限流时自动退避）", "Query quota immediately (once per 60s per account; backs off if throttled)"))
+            Button { runtime.toggleAwake() } label: { Label(L("防睡眠", "Awake"), systemImage: runtime.awake ? "cup.and.saucer.fill" : "cup.and.saucer") }
+                .tint(runtime.awake ? .blue : nil).help(runtime.awake ? L("已阻止系统闲置睡眠；点按恢复", "System idle sleep prevented; click to restore") : L("阻止系统闲置睡眠，让等待中的会话能按时继续", "Prevent system idle sleep to let queued sessions continue on schedule"))
             Spacer()
-            Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }.help("退出 LimitBreak")
+            Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }.help(L("退出 LimitBreak", "Quit LimitBreak"))
         }.buttonStyle(.bordered).controlSize(.small)
     }
 }

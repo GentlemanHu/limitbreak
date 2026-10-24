@@ -4,27 +4,28 @@ import SwiftUI
 struct WorkbenchDiagnostics: View {
     @ObservedObject var runtime: TrayRuntime
     @State private var probeBusy = false
-    @State private var probeResult = "尚未执行本次只读检查"
+    @State private var probeResult = L("尚未执行本次只读检查", "Read-only probe has not been run yet")
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("诊断").font(.title.bold())
-                Text("只读检查各环节是否就绪。要验证某个会话能否真正收到继续文案，请在「会话托管」里对它使用「测试发送」。").foregroundStyle(.secondary)
-                GroupBox("运行状态") {
+                Text(L("诊断", "Diagnostics")).font(.title.bold())
+                Text(L("只读检查各环节是否就绪。要验证某个会话能否真正收到继续文案，请在「会话托管」里对它使用「测试发送」。",
+                       "Read-only health checks. To verify that a session receives continue prompts, use 'Test Send' in Sessions.")).foregroundStyle(.secondary)
+                GroupBox(L("运行状态", "System Status")) {
                     VStack(alignment: .leading, spacing: 12) {
-                        statusRow("自有后台", value: runtime.daemonRunning ? "运行中" : "未运行", good: runtime.daemonRunning)
-                        statusRow("本地快照", value: runtime.localServiceFresh ? "近期收到" : "未收到／过期", good: runtime.localServiceFresh)
-                        statusRow("额度来源", value: runtime.proxyConnected ? "至少有来源连接" : "尚未确认", good: runtime.proxyConnected)
-                        statusRow("辅助功能", value: runtime.accessibilityGranted ? "已授权" : "未授权", good: runtime.accessibilityGranted)
-                        statusRow("会话事件", value: runtime.hookStatus, good: runtime.hooksInstalled)
-                        statusRow("自动继续授权", value: runtime.automationConsented ? "已允许" : "未允许（只监控）", good: runtime.automationConsented)
+                        statusRow(L("自有后台", "Owned Daemon"), value: runtime.daemonRunning ? L("运行中", "Running") : L("未运行", "Stopped"), good: runtime.daemonRunning)
+                        statusRow(L("本地快照", "Local Snapshot"), value: runtime.localServiceFresh ? L("近期收到", "Fresh") : L("未收到／过期", "Stale / Missing"), good: runtime.localServiceFresh)
+                        statusRow(L("额度来源", "Quota Source"), value: runtime.proxyConnected ? L("至少有来源连接", "Connected") : L("尚未确认", "Unconfirmed"), good: runtime.proxyConnected)
+                        statusRow(L("辅助功能", "Accessibility"), value: runtime.accessibilityGranted ? L("已授权", "Authorized") : L("未授权", "Unauthorized"), good: runtime.accessibilityGranted)
+                        statusRow(L("会话事件", "Session Events"), value: runtime.hookStatus, good: runtime.hooksInstalled)
+                        statusRow(L("自动继续授权", "Auto-Continue Authorization"), value: runtime.automationConsented ? L("已允许", "Authorized") : L("未允许（只监控）", "Unauthorized (Monitor only)"), good: runtime.automationConsented)
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
                 }
-                GroupBox("Claude 桌面") {
+                GroupBox(L("Claude 桌面", "Claude Desktop")) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Button(probeBusy ? "检查中…" : "只读检查桌面") { Task { await probe() } }.disabled(probeBusy || !runtime.daemonRunning)
-                            Text("不切换会话，不写输入框，不发送消息").font(.caption).foregroundStyle(.secondary)
+                            Button(probeBusy ? L("检查中…", "Probing…") : L("只读检查桌面", "Probe Desktop (Read-only)")) { Task { await probe() } }.disabled(probeBusy || !runtime.daemonRunning)
+                            Text(L("不切换会话，不写输入框，不发送消息", "Does not switch sessions, type, or send messages")).font(.caption).foregroundStyle(.secondary)
                         }
                         Text(probeResult).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                         if runtime.snapshot?.capabilities["bridge_checked"]?.bool == true {
@@ -42,11 +43,11 @@ struct WorkbenchDiagnostics: View {
         guard !probeBusy else { return }; probeBusy = true; defer { probeBusy = false }
         do {
             let response = try JSONDecoder().decode(GuardDesktopProbeResponse.self, from: await runtime.request("/api/desktop/probe", body: Data("{}".utf8)))
-            guard response.completed else { throw RuntimeFailure("本次桌面检查未确认完成，状态未知") }
+            guard response.completed else { throw RuntimeFailure(L("本次桌面检查未确认完成，状态未知", "Desktop probe incomplete; status unknown")) }
             runtime.checkAccessibility()
             await runtime.refresh()
             probeResult = GuardDesktopObservation(response.result, now: Date()).description
         }
-        catch { probeResult = (error as? RuntimeFailure)?.message ?? "桌面检查未完成；未发送任何消息。" }
+        catch { probeResult = (error as? RuntimeFailure)?.message ?? L("桌面检查未完成；未发送任何消息。", "Desktop probe incomplete; no messages sent.") }
     }
 }

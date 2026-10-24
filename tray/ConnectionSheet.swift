@@ -11,14 +11,14 @@ struct ConnectionSheet: View {
     @State private var rechecking = false
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("CLIProxyAPI 连接").font(.title3.bold())
+            Text(L("CLIProxyAPI 连接", "CLIProxyAPI Connection")).font(.title3.bold())
             status
             if explicitSources {
-                Text("当前使用「来源与适配」中的多来源配置；地址和密钥请在那里按来源修改。").font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(L("当前使用「来源与适配」中的多来源配置；地址和密钥请在那里按来源修改。", "Currently using multi-source configuration from Sources & Adapters; edit endpoints and keys there.")).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Button("关闭", action: close)
+                    Button(L("关闭", "Close"), action: close)
                     Spacer()
-                    Button("打开来源与适配") { close(); runtime.openWorkbench(.sources) }.buttonStyle(.borderedProminent)
+                    Button(L("打开来源与适配", "Open Sources & Adapters")) { close(); runtime.openWorkbench(.sources) }.buttonStyle(.borderedProminent)
                 }
             } else {
                 form
@@ -37,18 +37,18 @@ struct ConnectionSheet: View {
             case .connected:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("已连接 · " + runtime.proxyURL).lineLimit(1).truncationMode(.middle)
+                    Text(L("已连接 · ", "Connected · ") + runtime.proxyURL).lineLimit(1).truncationMode(.middle)
                     Text(connectedDetail(source)).font(.caption).foregroundStyle(.secondary)
                 }
             case .starting, .checking:
                 ProgressView().controlSize(.small)
-                Text("正在读取额度来源…（已等待 \(runtime.secondsSinceLaunch) 秒）")
+                Text(L("正在读取额度来源…（已等待 \(runtime.secondsSinceLaunch) 秒）", "Checking quota sources… (waiting \(runtime.secondsSinceLaunch)s)"))
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 Text(runtime.sourceProblem).fixedSize(horizontal: false, vertical: true)
             case .unconfigured:
                 Image(systemName: "link.badge.plus").foregroundStyle(.secondary)
-                Text("尚未连接。填写本机 CLIProxyAPI 地址和管理密钥。")
+                Text(L("尚未连接。填写本机 CLIProxyAPI 地址和管理密钥。", "Not connected. Enter local CLIProxyAPI URL and management key."))
             }
             Spacer(minLength: 0)
         }.font(.callout).padding(12).frame(maxWidth: .infinity, alignment: .leading)
@@ -56,8 +56,9 @@ struct ConnectionSheet: View {
     }
 
     private func connectedDetail(_ source: GuardSource?) -> String {
-        var parts = ["\(source?.account_count ?? runtime.snapshot?.accounts?.count ?? 0) 个账号"]
-        if let checked = source.flatMap({ trayDate($0.checked_at) }) { parts.append("上次读取 " + checked.formatted(date: .omitted, time: .standard)) }
+        let count = source?.account_count ?? runtime.snapshot?.accounts?.count ?? 0
+        var parts = [L("\(count) 个账号", "\(count) account(s)")]
+        if let checked = source.flatMap({ trayDate($0.checked_at) }) { parts.append(L("上次读取 ", "Checked ") + checked.formatted(date: .omitted, time: .standard)) }
         return parts.joined(separator: " · ")
     }
 
@@ -69,33 +70,34 @@ struct ConnectionSheet: View {
 
     @ViewBuilder private var form: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("代理地址").font(.caption).foregroundStyle(.secondary)
+            Text(L("代理地址", "Proxy URL")).font(.caption).foregroundStyle(.secondary)
             TextField("http://127.0.0.1:8317", text: $url).textFieldStyle(.roundedBorder)
         }
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("管理密钥").font(.caption).foregroundStyle(.secondary)
-                if savedKey { Label("已保存", systemImage: "lock.fill").font(.caption).foregroundStyle(.green) }
+                Text(L("管理密钥", "Management Key")).font(.caption).foregroundStyle(.secondary)
+                if savedKey { Label(L("已保存", "Saved"), systemImage: "lock.fill").font(.caption).foregroundStyle(.green) }
             }
-            SecureField(savedKey ? "留空则保留已保存的密钥" : "粘贴 CLIProxyAPI 管理密钥", text: $key).textFieldStyle(.roundedBorder)
-            Text("密钥只写入本用户私有文件，不会回显，也不进入菜单栏、日志、插件清单或网页地址。").font(.caption2).foregroundStyle(.secondary)
+            SecureField(savedKey ? L("留空则保留已保存的密钥", "Leave blank to keep saved key") : L("粘贴 CLIProxyAPI 管理密钥", "Paste CLIProxyAPI management key"), text: $key).textFieldStyle(.roundedBorder)
+            Text(L("密钥只写入本用户私有文件，不会回显，也不进入菜单栏、日志、插件清单或网页地址。", "Key is stored in a private user file (0600); never exposed in logs, menubar, or URLs.")).font(.caption2).foregroundStyle(.secondary)
         }
         if !runtime.error.isEmpty { Text(runtime.error).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
         HStack {
-            Button("关闭", action: close).disabled(runtime.connecting).keyboardShortcut(.cancelAction)
+            Button(L("关闭", "Close"), action: close).disabled(runtime.connecting).keyboardShortcut(.cancelAction)
             Spacer()
             if runtime.configured {
-                Button(rechecking ? "读取中…" : "重新读取额度") {
+                Button(rechecking ? L("读取中…", "Refreshing…") : L("重新读取额度", "Refresh Quota")) {
                     rechecking = true
                     Task { await runtime.refreshQuota(); rechecking = false }
                 }.disabled(rechecking || runtime.connecting || !runtime.daemonRunning)
-                    .help("不改设置，立即向 CLIProxyAPI 重新读取一次额度")
+                    .help(L("不改设置，立即向 CLIProxyAPI 重新读取一次额度", "Query quotas from CLIProxyAPI immediately"))
             }
-            Button(runtime.connecting ? "连接中…" : runtime.configured ? "保存并重新连接" : "连接并保存") {
+            let saveLabel = runtime.connecting ? L("连接中…", "Connecting…") : runtime.configured ? L("保存并重新连接", "Save & Reconnect") : L("连接并保存", "Connect & Save")
+            Button(saveLabel) {
                 let secret = trimmedKey; key = ""
                 Task {
                     await runtime.connect(url: url, key: secret)
-                    if runtime.proxyConnected { runtime.notice = "已连接 CLIProxyAPI"; close() }
+                    if runtime.proxyConnected { runtime.notice = L("已连接 CLIProxyAPI", "CLIProxyAPI Connected"); close() }
                 }
             }.buttonStyle(.borderedProminent).disabled(!canSave).keyboardShortcut(.defaultAction)
         }

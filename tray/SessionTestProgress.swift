@@ -4,16 +4,17 @@ import SwiftUI
 // reason in the 3-second snapshot, so what is shown is what the daemon recorded.
 struct SessionTestProgress: View {
     @ObservedObject var runtime: TrayRuntime
+    @ObservedObject private var lang = LanguageManager.shared
     let session: TraySession
     var body: some View {
         if let job = runtime.latestTest(for: session) {
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("测试发送进度").font(.headline)
+                        Text(L("测试发送进度", "Test Send Progress")).font(.headline)
                         Spacer()
                         if let start = trayDate(job.created_at) {
-                            Text(start.formatted(date: .omitted, time: .standard) + " 开始").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            Text(start.formatted(Date.FormatStyle(date: .omitted, time: .standard, locale: lang.locale)) + L(" 开始", " started")).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         }
                     }
                     let stage = TestStage(job: job)
@@ -53,7 +54,12 @@ struct SessionTestProgress: View {
 
 private struct TestStage {
     enum Status { case done, active, waiting, failed, pending }
-    static let titles = ["排队", "打开会话、核验目标并发送", "等待会话回执", "完成"]
+    static var titles: [String] {
+        [L("排队", "Queueing"),
+         L("打开会话、核验目标并发送", "Open Session, Verify & Send"),
+         L("等待会话回执", "Awaiting Turn Receipt"),
+         L("完成", "Complete")]
+    }
     let current: Int
     let failed: Bool
     let waiting: Bool
@@ -62,7 +68,7 @@ private struct TestStage {
     init(job: TrayJob) {
         state = job.state
         let raw = job.reason ?? ""
-        reason = job.reason_text?.isEmpty == false ? job.reason_text! : raw
+        reason = LanguageManager.shared.explain(reason: raw, reasonText: job.reason_text)
         waiting = state == "READY_TO_RESUME" && raw.hasPrefix("waiting for desktop")
         switch state {
         case "READY_TO_RESUME", "COOLDOWN": current = 0; failed = false
@@ -70,7 +76,6 @@ private struct TestStage {
         case "VERIFYING": current = 2; failed = false
         case "COMPLETED": current = 4; failed = false
         default:
-            // Attention or cancelled: locate the step that stopped.
             current = raw.hasPrefix("dispatch confirmation timed out") ? 2 : (raw.hasPrefix("未发送") || state == "CANCELLED" ? 1 : 2)
             failed = true
         }
@@ -86,25 +91,25 @@ private struct TestStage {
         switch (index, failed) {
         case (0, _):
             if waiting {
-                let tries = job.attempts.map { "（已尝试 \($0)/10 次）" } ?? ""
+                let tries = job.attempts.map { L("（已尝试 \($0)/10 次）", " (attempted \($0)/10)") } ?? ""
                 return reason + tries
             }
-            if let at = trayDate(job.not_before), at > now { return "\(trayDuration(at.timeIntervalSince(now))) 后开始" }
-            return "即将开始；接下来请不要操作键盘和鼠标"
-        case (1, false): return "正在切到 Claude 并发送；请勿操作键盘和鼠标"
+            if let at = trayDate(job.not_before), at > now { return localizedDuration(at.timeIntervalSince(now)) + L(" 后开始", " until start") }
+            return L("即将开始；接下来请不要操作键盘和鼠标", "Starting soon; please release keyboard and mouse")
+        case (1, false): return L("正在切到 Claude 并发送；请勿操作键盘和鼠标", "Switching to Claude and sending; please do not touch keyboard or mouse")
         case (2, false):
-            let since = trayDate(job.updated_at).map { "，已等待 \(Int(max(0, now.timeIntervalSince($0)))) 秒" } ?? ""
-            return "已按下发送，等待 Claude 上报该会话收到了消息（最多约 45 秒）" + since
+            let since = trayDate(job.updated_at).map { L("，已等待 \(Int(max(0, now.timeIntervalSince($0)))) 秒", ", waiting for \(Int(max(0, now.timeIntervalSince($0))))s") } ?? ""
+            return L("已按下发送，等待 Claude 上报该会话收到了消息（最多约 45 秒）", "Send pressed; awaiting confirmation hook from Claude (up to 45s)") + since
         default: return nil
         }
     }
     var outcome: (ok: Bool, text: String)? {
-        if state == "COMPLETED" { return (true, "✓ 会话已确认收到测试文案，目标会话正确。") }
+        if state == "COMPLETED" { return (true, L("✓ 会话已确认收到测试文案，目标会话正确。", "✓ Session acknowledged receipt; target session verified.")) }
         guard failed else { return nil }
-        if reason.hasPrefix("未发送") {
-            return (false, reason + "\n没有写入或发送任何内容，可以修正后再次测试。")
+        if reason.hasPrefix("未发送") || reason.hasPrefix("Not sent") {
+            return (false, reason + "\n" + L("没有写入或发送任何内容，可以修正后再次测试。", "Nothing was written or sent; you may adjust settings and retry."))
         }
-        if state == "CANCELLED" { return (false, "已停止：" + reason) }
-        return (false, reason + "\n结果不确定：请到 Claude 中查看该会话；为避免重复，不会自动重发。")
+        if state == "CANCELLED" { return (false, L("已停止：", "Stopped: ") + reason) }
+        return (false, reason + "\n" + L("结果不确定：请到 Claude 中查看该会话；为避免重复，不会自动重发。", "Outcome uncertain: please check session in Claude; will not resend to avoid duplicate."))
     }
 }

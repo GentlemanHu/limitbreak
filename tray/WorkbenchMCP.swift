@@ -17,41 +17,46 @@ struct WorkbenchMCP: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("MCP 授权与用户确认").font(.title.bold())
-                Text("AI只能读取限定目标、提交待确认意图。只有你在主应用核对精确操作后才能批准；AI自己的ack不是授权。此处使用私有full Bearer管理API，不把主应用令牌导出。").foregroundStyle(.secondary)
+                Text(L("MCP 授权与用户确认", "MCP Authorization & Approvals")).font(.title.bold())
+                Text(L("AI只能读取限定目标、提交待确认意图。只有你在主应用核对精确操作后才能批准；AI自己的ack不是授权。此处使用私有full Bearer管理API，不把主应用令牌导出。",
+                       "AI can only read scoped targets and submit pending intent. Operations require manual user review in the main app; AI ack is not authorization. Private full Bearer management API is never exported.")).foregroundStyle(.secondary)
                 HStack {
-                    Button(busy ? "处理中…" : "读取授权与请求") { Task { await reload() } }.disabled(busy || !runtime.daemonRunning)
-                    Text(loadedAt.map { "列表实际读取：" + $0.formatted(date: .abbreviated, time: .standard) } ?? "尚未读取列表").font(.caption).foregroundStyle(.secondary)
+                    Button(busy ? L("处理中…", "Loading…") : L("读取授权与请求", "Reload Grants & Requests")) { Task { await reload() } }.disabled(busy || !runtime.daemonRunning)
+                    Text(loadedAt.map { L("列表实际读取：", "List refreshed: ") + $0.formatted(date: .abbreviated, time: .standard) } ?? L("尚未读取列表", "List not loaded yet")).font(.caption).foregroundStyle(.secondary)
                 }
                 if !message.isEmpty { Text(message).font(.callout).foregroundStyle(.secondary).textSelection(.enabled) }
                 issuance
-                GroupBox("已有授权（不提供再次导出）") {
+                GroupBox(L("已有授权（不提供再次导出）", "Existing Grants (Export unavailable once issued)")) {
                     VStack(alignment: .leading, spacing: 14) {
-                        if grants.isEmpty { Text("列表暂无授权；未读取时不表示服务器没有授权。").font(.caption).foregroundStyle(.secondary) }
+                        if grants.isEmpty { Text(L("列表暂无授权；未读取时不表示服务器没有授权。", "No grants listed; unread state does not mean server has no grants.")).font(.caption).foregroundStyle(.secondary) }
                         ForEach(grants) { grant in
                             VStack(alignment: .leading, spacing: 6) {
-                                HStack { Text(grant.id).font(.callout.monospaced()); Spacer(); Text(grant.active(at: runtime.now) ? "有效" : "已撤销／到期").font(.caption); Button("撤销", role: .destructive) { revoke = grant }.disabled(busy || grant.revoked_at != nil) }
-                                Text("scope：" + grant.scopes.joined(separator: ", ")).font(.caption.monospaced())
-                                Text("精确targets：" + grant.session_targets.joined(separator: ", ")).font(.caption.monospaced()).textSelection(.enabled)
-                                Text("创建 \(grant.created_at)；到期 \(grant.expires_at)").font(.caption.monospaced())
+                                HStack { Text(grant.id).font(.callout.monospaced()); Spacer(); Text(grant.active(at: runtime.now) ? L("有效", "Active") : L("已撤销／到期", "Revoked / Expired")).font(.caption); Button(L("撤销", "Revoke"), role: .destructive) { revoke = grant }.disabled(busy || grant.revoked_at != nil) }
+                                Text("scope: " + grant.scopes.joined(separator: ", ")).font(.caption.monospaced())
+                                Text(L("精确targets：", "Targets: ") + grant.session_targets.joined(separator: ", ")).font(.caption.monospaced()).textSelection(.enabled)
+                                Text(L("创建 ", "Created ") + grant.created_at + L("；到期 ", " · Expires ") + grant.expires_at).font(.caption.monospaced())
                             }.padding(.vertical, 5)
                             Divider()
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
                 }
-                GroupBox("操作请求（不自动批准）") {
+                GroupBox(L("操作请求（不自动批准）", "Operation Requests (Never auto-approved)")) {
                     VStack(alignment: .leading, spacing: 12) {
-                        if requests.isEmpty { Text("暂无已读取请求。请刷新；不会因AI ack而自动确认。").font(.caption).foregroundStyle(.secondary) }
+                        if requests.isEmpty { Text(L("暂无已读取请求。请刷新；不会因AI ack而自动确认。", "No loaded requests. Please refresh; will not auto-confirm from AI ack.")).font(.caption).foregroundStyle(.secondary) }
                         ForEach(requests) { request in
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text("\(request.action.operation) → \(request.action.session_id)").font(.headline)
                                     Text("\(request.id) · generation \(request.action.expected_generation) · \(request.state)").font(.caption.monospaced())
-                                    Text("到期 \(request.expires_at)").font(.caption.monospaced()).foregroundStyle(.secondary)
-                                    if let result = request.result { Text("结果：\(result.ok ? "成功" : "未确认成功") / \(result.code)；撤回发送\(result.send_retraction_confirmed ? "已确认" : "未确认")").font(.caption) }
+                                    Text(L("到期 ", "Expires ") + request.expires_at).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                    if let result = request.result {
+                                        let okText = result.ok ? L("成功", "Success") : L("未确认成功", "Unconfirmed")
+                                        let retractText = result.send_retraction_confirmed ? L("已确认", "Confirmed") : L("未确认", "Unconfirmed")
+                                        Text(L("结果：\(okText) / \(result.code)；撤回发送\(retractText)", "Result: \(okText) / \(result.code); Retraction: \(retractText)")).font(.caption)
+                                    }
                                 }
                                 Spacer()
-                                Button(request.state == "pending" ? "核对并决定" : "查看详情") { review = request }.disabled(busy)
+                                Button(request.state == "pending" ? L("核对并决定", "Review & Decide") : L("查看详情", "View Details")) { review = request }.disabled(busy)
                             }.padding(.vertical, 6)
                             Divider()
                         }
@@ -62,23 +67,23 @@ struct WorkbenchMCP: View {
             .sheet(item: $review) { request in
                 MCPRequestReview(runtime: runtime, request: request, close: { review = nil }, changed: { message = $0; Task { await reload() } })
             }
-            .confirmationDialog("撤销后此授权的新请求会被拒绝，已提交的外部操作不能保证撤回。", isPresented: Binding(get: { revoke != nil }, set: { if !$0 { revoke = nil } })) {
-                Button("撤销这一个授权", role: .destructive) { if let grant = revoke { Task { await revokeGrant(grant) } }; revoke = nil }
-                Button("返回", role: .cancel) { revoke = nil }
+            .confirmationDialog(L("撤销后此授权的新请求会被拒绝，已提交的外部操作不能保证撤回。", "Revoking rejects new requests from this grant; external actions cannot be guaranteed reverted."), isPresented: Binding(get: { revoke != nil }, set: { if !$0 { revoke = nil } })) {
+                Button(L("撤销这一个授权", "Revoke This Grant"), role: .destructive) { if let grant = revoke { Task { await revokeGrant(grant) } }; revoke = nil }
+                Button(L("返回", "Cancel"), role: .cancel) { revoke = nil }
             }
     }
     private var issuance: some View {
-        GroupBox("创建限定授权并仅一次导出0600 profile") {
+        GroupBox(L("创建限定授权并仅一次导出0600 profile", "Create Scoped Grant & Export 0600 Profile Once")) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("导出的JSON只包含daemon_url和access_token。令牌仅此次签发可取，不进入日志、剪贴板或真实用户配置；丢失后撤销重建。").font(.caption).foregroundStyle(.secondary)
+                Text(L("导出的JSON只包含daemon_url和access_token。令牌仅此次签发可取，不进入日志、剪贴板或真实用户配置；丢失后撤销重建。", "Exported JSON contains daemon_url and access_token only. Token is only available at issuance.")).font(.caption).foregroundStyle(.secondary)
                 ForEach(GuardMCPContract.scopes, id: \.self) { scope in
                     Toggle(scope, isOn: Binding(get: { selectedScopes.contains(scope) }, set: { selected in
                         if selected { selectedScopes.insert(scope) } else { selectedScopes.remove(scope) }
                     })).toggleStyle(.checkbox).font(.caption.monospaced()).disabled(scope == "read" || busy)
                 }
                 Divider()
-                Text("限定精确目标（无通配符；daemon为全局策略／刷新目标）").font(.caption)
-                Toggle("daemon · 全局守护器", isOn: targetSelection("daemon")).toggleStyle(.checkbox).disabled(busy)
+                Text(L("限定精确目标（无通配符；daemon为全局策略／刷新目标）", "Specific targets (no wildcards; daemon is global policy target)")).font(.caption)
+                Toggle(L("daemon · 全局守护器", "daemon · Global Guard"), isOn: targetSelection("daemon")).toggleStyle(.checkbox).disabled(busy)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(runtime.snapshot?.sessions ?? []) { session in
@@ -86,8 +91,12 @@ struct WorkbenchMCP: View {
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(maxHeight: 170)
-                HStack { Text("TTL秒（60–86400）"); TextField("TTL", text: $ttl).textFieldStyle(.roundedBorder).frame(width: 130).disabled(busy); Text("已选 \(selectedTargets.count) 个targets").font(.caption) }
-                Button("确认以上scope、targets与TTL，创建并导出新profile…") { Task { await issue() } }.buttonStyle(.borderedProminent).disabled(busy || selectedTargets.isEmpty || !runtime.desktopExecutionReady)
+                HStack {
+                    Text(L("TTL秒（60–86400）", "TTL seconds (60-86400)"))
+                    TextField("TTL", text: $ttl).textFieldStyle(.roundedBorder).frame(width: 130).disabled(busy)
+                    Text(L("已选 \(selectedTargets.count) 个targets", "\(selectedTargets.count) target(s) selected")).font(.caption)
+                }
+                Button(L("确认以上scope、targets与TTL，创建并导出新profile…", "Confirm Scope, Targets & TTL, Create & Export Profile…")) { Task { await issue() } }.buttonStyle(.borderedProminent).disabled(busy || selectedTargets.isEmpty || !runtime.desktopExecutionReady)
             }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
         }
     }

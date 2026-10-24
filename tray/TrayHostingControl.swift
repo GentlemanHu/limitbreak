@@ -24,12 +24,18 @@ extension TrayRuntime {
 
     // One sentence for "will anything be sent automatically right now, and why not".
     var hostingSummary: String {
-        if !localServiceFresh { return "等待本地服务" }
-        if paused { return "已紧急暂停 · 所有会话只监控" }
-        if !automationConsented { return "尚未允许自动继续 · 只监控" }
+        if !localServiceFresh { return L("等待本地服务", "Waiting for local service") }
+        if paused { return L("已紧急暂停 · 所有会话只监控", "Emergency paused · All sessions monitor-only") }
+        if !automationConsented { return L("尚未允许自动继续 · 只监控", "Auto-continue unauthorized · Monitor only") }
         let ready = hostedReadyCount
-        if ready == 0 { return defaultHosted ? "智能托管 · 暂无可自动继续的会话" : "默认仅监控 · 没有单独开启托管的会话" }
-        return defaultHosted ? "智能托管 · \(ready) 个会话可自动继续" : "默认仅监控 · \(ready) 个会话单独托管"
+        if ready == 0 {
+            return defaultHosted
+                ? L("智能托管 · 暂无可自动继续的会话", "Hosted · No sessions ready to continue")
+                : L("默认仅监控 · 没有单独开启托管的会话", "Default monitor-only · No individually hosted sessions")
+        }
+        return defaultHosted
+            ? L("智能托管 · \(ready) 个会话可自动继续", "Hosted · \(ready) sessions ready to auto-continue")
+            : L("默认仅监控 · \(ready) 个会话单独托管", "Default monitor-only · \(ready) sessions individually hosted")
     }
 
     // Menu-bar symbol: stopped, needs you, sending automatically, or only watching.

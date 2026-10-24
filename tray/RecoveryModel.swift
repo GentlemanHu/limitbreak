@@ -30,10 +30,10 @@ enum RecoveryFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .active: return "进行中"
-        case .attention: return "需处理"
-        case .finished: return "近 24 小时已结束"
-        case .all: return "全部"
+        case .active: return L("进行中", "Active")
+        case .attention: return L("需处理", "Attention")
+        case .finished: return L("近 24 小时已结束", "Finished (24h)")
+        case .all: return L("全部", "All")
         }
     }
 }
@@ -41,7 +41,14 @@ enum RecoveryFilter: String, CaseIterable, Identifiable {
 // The six steps of a recovery. `current` is the step in progress; earlier steps are done.
 struct RecoveryPipeline {
     enum Status { case done, active, waiting, failed, cancelled, pending }
-    static let titles = ["撞上限额", "等待额度恢复", "复查确认额度", "发送继续", "会话回执", "已继续"]
+    static var titles: [String] {
+        [L("撞上限额", "Hit Limit"),
+         L("等待额度恢复", "Waiting for Quota"),
+         L("复查确认额度", "Checking Quota"),
+         L("发送继续", "Sending Prompt"),
+         L("会话回执", "Turn Receipt"),
+         L("已继续", "Continued")]
+    }
     static let icons = ["exclamationmark.octagon", "hourglass", "arrow.triangle.2.circlepath", "paperplane", "checkmark.message", "checkmark.seal"]
     let current: Int
     let failed: Bool
@@ -125,6 +132,7 @@ extension TrayRuntime {
 // "02:19:08" today, "周二 02:19" otherwise.
 func recoveryTime(_ date: Date?, now: Date) -> String {
     guard let date else { return "—" }
-    if Calendar.current.isDate(date, inSameDayAs: now) { return date.formatted(date: .omitted, time: .standard) }
-    return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    let locale = LanguageManager.shared.locale
+    if Calendar.current.isDate(date, inSameDayAs: now) { return date.formatted(Date.FormatStyle(date: .omitted, time: .standard, locale: locale)) }
+    return date.formatted(Date.FormatStyle().weekday(.abbreviated).hour().minute().locale(locale))
 }

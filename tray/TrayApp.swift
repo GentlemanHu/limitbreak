@@ -24,6 +24,8 @@ final class TrayDelegate: NSObject, NSApplicationDelegate {
     private var recovery: RecoveryWindow?
     private var shownSymbol = "bolt.horizontal.circle"
 
+    private var langSubscription: AnyCancellable?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -31,7 +33,7 @@ final class TrayDelegate: NSObject, NSApplicationDelegate {
         item.button?.imagePosition = .imageLeading
         item.button?.target = self
         item.button?.action = #selector(togglePopover)
-        item.button?.toolTip = "点击查看账号额度和 Claude 会话"
+        item.button?.toolTip = L("点击查看账号额度和 Claude 会话", "Click to view account quotas and Claude sessions")
         popover.behavior = .transient
         popover.animates = false
         let panel = NSHostingController(rootView: TrayPanel(runtime: runtime))
@@ -49,6 +51,12 @@ final class TrayDelegate: NSObject, NSApplicationDelegate {
             self.item.button?.title = " " + self.runtime.title
             self.updateSymbol()
         }
+        langSubscription = LanguageManager.shared.objectWillChange.receive(on: RunLoop.main).sink { [weak self] _ in
+            guard let self else { return }
+            self.installMenu()
+            self.item.button?.toolTip = L("点击查看账号额度和 Claude 会话", "Click to view account quotas and Claude sessions")
+            self.item.button?.title = " " + self.runtime.title
+        }
         Task { await runtime.start() }
         item.button?.title = " " + runtime.title
         // Explicit application opens have a real native window, not a transient web or menu panel.
@@ -64,21 +72,21 @@ final class TrayDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu(title: "LimitBreak")
-        appMenu.addItem(withTitle: "退出 LimitBreak", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L("退出 LimitBreak", "Quit LimitBreak"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu; menu.addItem(appItem)
         let editItem = NSMenuItem()
-        let editMenu = NSMenu(title: "编辑")
-        editMenu.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        let editMenu = NSMenu(title: L("编辑", "Edit"))
+        editMenu.addItem(withTitle: L("撤销", "Undo"), action: Selector(("undo:")), keyEquivalent: "z")
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: L("剪切", "Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L("复制", "Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L("粘贴", "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: L("全选", "Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = editMenu; menu.addItem(editItem)
         let windowItem = NSMenuItem()
-        let windowMenu = NSMenu(title: "窗口")
-        windowMenu.addItem(withTitle: "关闭工作台", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        windowMenu.addItem(withTitle: "最小化", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        let windowMenu = NSMenu(title: L("窗口", "Window"))
+        windowMenu.addItem(withTitle: L("关闭工作台", "Close Workbench"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowMenu.addItem(withTitle: L("最小化", "Minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowItem.submenu = windowMenu; menu.addItem(windowItem)
         NSApplication.shared.mainMenu = menu
         NSApplication.shared.windowsMenu = windowMenu

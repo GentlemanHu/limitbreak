@@ -6,8 +6,16 @@ enum WorkbenchSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .overview: return "概览"; case .recovery: return "恢复任务"; case .sessions: return "会话托管"; case .resources: return "额度资源"; case .hosting: return "托管规则"
-        case .activity: return "活动记录"; case .sources: return "来源与适配"; case .diagnostics: return "诊断"; case .mcp: return "MCP 授权"; case .settings: return "设置"
+        case .overview: return L("概览", "Overview")
+        case .recovery: return L("恢复任务", "Recovery Tasks")
+        case .sessions: return L("会话托管", "Sessions")
+        case .resources: return L("额度资源", "Quota Resources")
+        case .hosting: return L("托管规则", "Hosting Rules")
+        case .activity: return L("活动记录", "Activity Log")
+        case .sources: return L("来源与适配", "Sources & Adapters")
+        case .diagnostics: return L("诊断", "Diagnostics")
+        case .mcp: return "MCP"
+        case .settings: return L("设置", "Settings")
         }
     }
     var icon: String {
@@ -50,6 +58,7 @@ final class WorkbenchWindow {
 struct WorkbenchView: View {
     @ObservedObject var runtime: TrayRuntime
     @ObservedObject var navigation: WorkbenchNavigation
+    @ObservedObject private var lang = LanguageManager.shared
     @State private var connecting = false
     @State private var refreshing = false
     var body: some View {
@@ -63,12 +72,12 @@ struct WorkbenchView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     Button { connecting = true } label: {
                         switch runtime.sourcePhase {
-                        case .connected: Label("额度来源已连接", systemImage: "checkmark.circle")
-                        case .starting, .checking: HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("正在读取额度来源…") }
-                        case .failed: Label("额度来源读取失败", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
-                        case .unconfigured: Label("额度来源未连接", systemImage: "link.badge.plus")
+                        case .connected: Label(L("额度来源已连接", "Quota Source Connected"), systemImage: "checkmark.circle")
+                        case .starting, .checking: HStack(spacing: 6) { ProgressView().controlSize(.mini); Text(L("正在读取额度来源…", "Checking quota sources…")) }
+                        case .failed: Label(L("额度来源读取失败", "Quota Source Error"), systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                        case .unconfigured: Label(L("额度来源未连接", "Quota Source Not Connected"), systemImage: "link.badge.plus")
                         }
-                    }.buttonStyle(.plain).help("打开连接设置")
+                    }.buttonStyle(.plain).help(L("打开连接设置", "Open connection settings"))
                     Label(runtime.hostingSummary, systemImage: runtime.paused ? "pause.octagon" : runtime.autoSendArmed && runtime.hostedReadyCount > 0 ? "bolt.horizontal.circle" : "eye")
                         .lineLimit(2)
                 }.font(.caption).foregroundStyle(.secondary).padding(16)
@@ -81,7 +90,7 @@ struct WorkbenchView: View {
                         Image(systemName: "checkmark.circle").foregroundStyle(.green)
                         Text(runtime.notice).font(.callout)
                         Spacer()
-                        Button { runtime.notice = "" } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help("关闭提示")
+                        Button { runtime.notice = "" } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help(L("关闭提示", "Dismiss notification"))
                     }.padding(12).background(.green.opacity(0.07))
                 }
                 if !runtime.error.isEmpty {
@@ -89,7 +98,7 @@ struct WorkbenchView: View {
                         Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
                         Text(runtime.error).font(.callout).textSelection(.enabled)
                         Spacer()
-                        Button { runtime.error = "" } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help("关闭提示")
+                        Button { runtime.error = "" } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help(L("关闭提示", "Dismiss notification"))
                     }.padding(14).background(.orange.opacity(0.08))
                 }
                 detail.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -97,9 +106,9 @@ struct WorkbenchView: View {
                 .toolbar {
                     ToolbarItemGroup {
                         Button { connecting = true } label: { Label(connectionTitle, systemImage: connectionIcon) }
-                            .labelStyle(.titleAndIcon).help("查看和修改 CLIProxyAPI 连接（额度来源）")
-                        Button { refreshing = true; Task { await runtime.refreshQuota(); refreshing = false } } label: { Label(refreshing ? "读取中" : "刷新额度", systemImage: "arrow.clockwise") }
-                            .labelStyle(.titleAndIcon).disabled(refreshing || !runtime.daemonRunning).help("立即向额度来源重新读取各账号额度")
+                            .labelStyle(.titleAndIcon).help(L("查看和修改 CLIProxyAPI 连接（额度来源）", "View and edit CLIProxyAPI quota source connection"))
+                        Button { refreshing = true; Task { await runtime.refreshQuota(); refreshing = false } } label: { Label(refreshing ? L("读取中", "Refreshing…") : L("刷新额度", "Refresh Quota"), systemImage: "arrow.clockwise") }
+                            .labelStyle(.titleAndIcon).disabled(refreshing || !runtime.daemonRunning).help(L("立即向额度来源重新读取各账号额度", "Query all account quotas from sources immediately"))
                         DefaultHostingToggle(runtime: runtime)
                         EmergencyPauseButton(runtime: runtime).labelStyle(.titleAndIcon)
                     }
@@ -108,10 +117,10 @@ struct WorkbenchView: View {
     }
     private var connectionTitle: String {
         switch runtime.sourcePhase {
-        case .connected: return "已连接"
-        case .starting, .checking: return "连接中"
-        case .failed: return "连接异常"
-        case .unconfigured: return "连接额度来源"
+        case .connected: return L("已连接", "Connected")
+        case .starting, .checking: return L("连接中", "Connecting")
+        case .failed: return L("连接异常", "Error")
+        case .unconfigured: return L("连接额度来源", "Connect Source")
         }
     }
     private var connectionIcon: String {

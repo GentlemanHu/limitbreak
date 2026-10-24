@@ -22,10 +22,10 @@ struct QuotaTile: View {
                     QuotaStateBadge(text: badge.0, color: badge.1)
                 }
                 if account.disabled == true {
-                    Text("该凭证已在来源中停用，不参与额度判断。").font(.caption).foregroundStyle(.secondary)
+                    Text(L("该凭证已在来源中停用，不参与额度判断。", "Credential disabled in source; excluded from quota evaluation.")).font(.caption).foregroundStyle(.secondary)
                 } else {
                     if layout.isEmpty {
-                        Text(account.reason.isEmpty ? "来源没有提供额度窗口" : workbenchReason(account.reason)).font(.caption).foregroundStyle(.secondary)
+                        Text(account.reason.isEmpty ? L("来源没有提供额度窗口", "No quota windows provided by source") : workbenchReason(account.reason)).font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(Array(layout.sections.enumerated()), id: \.offset) { _, section in
                         if !section.isEmpty { QuotaSectionBars(section: section, now: runtime.now) }
@@ -38,7 +38,7 @@ struct QuotaTile: View {
                 Divider()
                 HStack(spacing: 6) {
                     Image(systemName: "bubble.left.and.bubble.right").foregroundStyle(tally.total > 0 ? Color.accentColor : .secondary)
-                    Text(tally.total > 0 ? "\(tally.total) 个会话" : "未绑定会话").fontWeight(tally.total > 0 ? .medium : .regular)
+                    Text(tally.total > 0 ? L("\(tally.total) 个会话", "\(tally.total) session(s)") : L("未绑定会话", "No bound sessions")).fontWeight(tally.total > 0 ? .medium : .regular)
                     if tally.total > 0 { Text(tally.detail).foregroundStyle(.secondary).lineLimit(1) }
                     Spacer(minLength: 4)
                     Text(checkedText).foregroundStyle(.secondary).lineLimit(1)
@@ -48,12 +48,12 @@ struct QuotaTile: View {
             .background(.background, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(badge.1.opacity(account.state == "limited" ? 0.45 : 0.12), lineWidth: 1))
             .contentShape(RoundedRectangle(cornerRadius: 14))
-        }.buttonStyle(.plain).accessibilityLabel("\(account.email) \(badge.0)，打开详情")
+        }.buttonStyle(.plain).accessibilityLabel("\(account.email) \(badge.0)")
     }
     private var checkedText: String {
-        let checked = "查询于 " + trayAgo(trayDate(account.checked_at), now: runtime.now)
+        let checked = L("查询于 ", "Checked ") + trayAgo(trayDate(account.checked_at), now: runtime.now)
         guard let next = trayDate(account.next_check_at), next > runtime.now else { return checked }
-        return checked + " · " + trayDuration(next.timeIntervalSince(runtime.now)) + " 后复查"
+        return checked + L(" · " + localizedDuration(next.timeIntervalSince(runtime.now)) + " 后复查", " · check in " + localizedDuration(next.timeIntervalSince(runtime.now)))
     }
 }
 
@@ -65,11 +65,11 @@ struct QuotaSectionBars: View {
         VStack(alignment: .leading, spacing: 10) {
             if let title = section.title {
                 Label(title, systemImage: "square.stack.3d.up").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    .help("适用范围未知：保守地视为影响这个账号的所有会话")
+                    .help(L("适用范围未知：保守地视为影响这个账号的所有会话", "Unknown scope: treated as account-wide"))
             }
             if section.short != nil || section.weekly != nil {
-                QuotaBar(window: section.short, placeholder: "5 小时", now: now)
-                QuotaBar(window: section.weekly, placeholder: "每周", now: now)
+                QuotaBar(window: section.short, placeholder: L("5 小时", "5 Hours"), now: now)
+                QuotaBar(window: section.weekly, placeholder: L("每周", "Weekly"), now: now)
             }
             ForEach(Array(section.others.prefix(2).enumerated()), id: \.offset) { _, w in QuotaBar(window: w, placeholder: "", now: now, compact: true) }
         }
@@ -86,10 +86,12 @@ struct QuotaGroupChips: View {
             let fresh = runtime.isFresh(group)
             let limited = group.state == "limited"
             let color: Color = !fresh ? .gray : limited ? .red : quotaUsageColor(window?.used_percent, blocked: false)
-            let value = window?.used_percent.map { "\(Int($0.rounded()))%" } ?? (limited ? "已满" : "")
+            let value = window?.used_percent.map { "\(Int($0.rounded()))%" } ?? (limited ? L("已满", "Full") : "")
             let icon = group.scope == "models" ? "cpu" : group.scope == "operation" ? "text.magnifyingglass" : "questionmark.circle"
             var help = runtime.groupScopeText(group)
-            if let reset = trayDate(group.available_at) ?? trayDate(window?.reset_at) { help += "\n预计重置：" + reset.formatted(date: .abbreviated, time: .shortened) }
+            if let reset = trayDate(group.available_at) ?? trayDate(window?.reset_at) {
+                help += "\n" + L("预计重置：", "Estimated reset: ") + reset.formatted(date: .abbreviated, time: .shortened)
+            }
             return FlowChip(id: group.id, text: group.name + (value.isEmpty ? "" : " " + value), icon: icon, color: color, help: help)
         })
     }

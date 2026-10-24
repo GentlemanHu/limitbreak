@@ -16,7 +16,7 @@ struct RecoveryCard: View {
             RecoveryPipelineView(pipeline: task.pipeline, details: stepDetails)
             clocks
             if let block = task.clock?.block, block != .none, task.job.active { callout(task.clock?.blockText ?? "", icon: "pause.circle.fill", color: .orange) }
-            if task.job.state == "NEEDS_ATTENTION" { callout(task.job.reason_text ?? task.job.reason ?? "需要人工查看", icon: "exclamationmark.triangle.fill", color: .red) }
+            if task.job.state == "NEEDS_ATTENTION" { callout(LanguageManager.shared.explain(reason: task.job.reason ?? "", reasonText: task.job.reason_text), icon: "exclamationmark.triangle.fill", color: .red) }
             pool
             events
             if !feedback.isEmpty { Text(feedback).font(.caption).foregroundStyle(.secondary) }
@@ -24,9 +24,9 @@ struct RecoveryCard: View {
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35), lineWidth: 1))
-        .confirmationDialog("停止「\(task.title)」的自动继续？不会关闭会话，也不会撤回已发送的内容。", isPresented: $cancelling) {
-            Button("停止", role: .destructive) { if let session = task.session { Task { await runtime.cancel(session) } } }
-            Button("返回", role: .cancel) {}
+        .confirmationDialog(L("停止「\(task.title)」的自动继续？不会关闭会话，也不会撤回已发送的内容。", "Stop auto-continue for \"\(task.title)\"? Will not close session or revert sent content."), isPresented: $cancelling) {
+            Button(L("停止", "Stop"), role: .destructive) { if let session = task.session { Task { await runtime.cancel(session) } } }
+            Button(L("返回", "Back"), role: .cancel) {}
         }
     }
 
@@ -52,16 +52,16 @@ struct RecoveryCard: View {
             }
             Spacer()
             QuotaStateBadge(text: stateTitle, color: accent)
-            QuotaStateBadge(text: task.hosted ? "托管·自动继续" : "仅监控", color: task.hosted ? .blue : .secondary)
+            QuotaStateBadge(text: task.hosted ? L("托管·自动继续", "Hosted · Auto-continue") : L("仅监控", "Monitor only"), color: task.hosted ? .blue : .secondary)
             if task.hosted || channel != nil { DeliveryBadge(runtime: runtime, session: task.session, job: task.job) }
             if task.job.active, let session = task.session {
-                Button(locating ? "定位中…" : "定位") { Task { locating = true; feedback = await runtime.locate(session); locating = false } }
-                    .controlSize(.small).disabled(locating).help("把该会话带到前台，不写入任何内容")
-                Button("停止", role: .destructive) { cancelling = true }.controlSize(.small)
+                Button(locating ? L("定位中…", "Locating…") : L("定位", "Locate")) { Task { locating = true; feedback = await runtime.locate(session); locating = false } }
+                    .controlSize(.small).disabled(locating).help(L("把该会话带到前台，不写入任何内容", "Bring this session window to front without typing"))
+                Button(L("停止", "Stop"), role: .destructive) { cancelling = true }.controlSize(.small)
             }
             if let session = task.session {
                 Button { runtime.focusSession = session.id; runtime.openWorkbench(.sessions) } label: { Image(systemName: "arrow.up.forward.square") }
-                    .buttonStyle(.borderless).help("在「会话托管」中打开")
+                    .buttonStyle(.borderless).help(L("在「会话托管」中打开", "Open in Sessions workbench"))
             }
         }
     }
@@ -70,18 +70,18 @@ struct RecoveryCard: View {
         if let project = task.session?.projectName, !project.isEmpty { parts.append(project) }
         if let app = task.session?.origin?.appTitle { parts.append(app) }
         if let model = task.session?.model, !model.isEmpty { parts.append(model) }
-        parts.append("第 \(task.job.generation ?? 0) 轮")
+        parts.append(L("第 \(task.job.generation ?? 0) 轮", "Round \(task.job.generation ?? 0)"))
         return parts.joined(separator: " · ")
     }
     // What a "waiting for desktop" pause is actually waiting for.
     private var desktopWait: (badge: String, hero: String) {
         let code = (task.job.reason ?? "").replacingOccurrences(of: "waiting for desktop: ", with: "").split(separator: " ").first.map(String.init) ?? ""
         switch code {
-        case "claude_in_use": return ("等你离开 Claude", "等 Claude 空闲")
-        case "user_active": return ("等你停手", "等键鼠空闲")
-        case "screen_locked", "screen_inactive", "console_inactive": return ("等解锁", "等解锁")
-        case "session_busy": return ("会话忙", "等会话空闲")
-        default: return ("等桌面就绪", "等桌面")
+        case "claude_in_use": return (L("等你离开 Claude", "Claude in use"), L("等 Claude 空闲", "Wait for Claude idle"))
+        case "user_active": return (L("等你停手", "User active"), L("等键鼠空闲", "Wait for user idle"))
+        case "screen_locked", "screen_inactive", "console_inactive": return (L("等解锁", "Screen locked"), L("等解锁", "Wait for unlock"))
+        case "session_busy": return (L("会话忙", "Session busy"), L("等会话空闲", "Wait for session idle"))
+        default: return (L("等桌面就绪", "Waiting for desktop"), L("等桌面", "Wait for desktop"))
         }
     }
     private var stateIcon: String {
@@ -97,16 +97,16 @@ struct RecoveryCard: View {
     }
     private var stateTitle: String {
         switch task.job.state {
-        case "COMPLETED": return "已继续"
-        case "CANCELLED": return "已停止"
+        case "COMPLETED": return L("已继续", "Continued")
+        case "CANCELLED": return L("已停止", "Stopped")
         case "COOLDOWN":
             switch task.clock?.block ?? .none {
-            case .concurrency: return "等并发名额"
+            case .concurrency: return L("等并发名额", "Waiting for slot")
             case .desktop: return desktopWait.badge
-            case .nativeGrace: return "宽限期"
-            case .none: return (task.clock?.available ?? 0) > 0 ? "复查确认中" : "等待额度"
+            case .nativeGrace: return L("宽限期", "Grace period")
+            case .none: return (task.clock?.available ?? 0) > 0 ? L("复查确认中", "Confirming check") : L("等待额度", "Waiting for quota")
             }
-        default: return trayState(task.job.state)
+        default: return localizedState(task.job.state)
         }
     }
 
@@ -130,26 +130,26 @@ struct RecoveryCard: View {
         switch job.state {
         case "COMPLETED":
             var waited = "—"
-            if let start = task.started, let end = task.finished { waited = trayDuration(end.timeIntervalSince(start)) }
-            return ("已于", recoveryTime(task.finished, now: now), "共等待 " + waited + (task.finished.map { " · " + trayRelative($0, now: now) } ?? ""))
-        case "CANCELLED": return ("已停止于", recoveryTime(task.finished, now: now), job.reason_text ?? "")
-        case "NEEDS_ATTENTION": return ("需要处理", "不会自动重发", "请在会话里确认后手动继续")
-        case "DISPATCHING", "VERIFYING": return ("进行中", job.state == "DISPATCHING" ? "正在发送" : "等待回执", "已用 " + since(trayDate(job.updated_at)))
+            if let start = task.started, let end = task.finished { waited = localizedDuration(end.timeIntervalSince(start)) }
+            return (L("已于", "Completed at"), recoveryTime(task.finished, now: now), L("共等待 ", "Total wait ") + waited + (task.finished.map { " · " + trayRelative($0, now: now) } ?? ""))
+        case "CANCELLED": return (L("已停止于", "Stopped at"), recoveryTime(task.finished, now: now), LanguageManager.shared.explain(reason: job.reason ?? "", reasonText: job.reason_text))
+        case "NEEDS_ATTENTION": return (L("需要处理", "Needs Attention"), L("不会自动重发", "Will not resend"), L("请在会话里确认后手动继续", "Please inspect session in Claude"))
+        case "DISPATCHING", "VERIFYING": return (L("进行中", "In progress"), job.state == "DISPATCHING" ? L("正在发送", "Sending") : L("等待回执", "Awaiting receipt"), L("已用 ", "Elapsed ") + since(trayDate(job.updated_at)))
         default: break
         }
-        guard let clock = task.clock else { return ("预计继续", "—", "会话信息缺失") }
+        guard let clock = task.clock else { return (L("预计继续", "Estimated continue"), "—", L("会话信息缺失", "Missing session info")) }
         switch clock.block {
-        case .concurrency: return ("预计继续", "等名额", "额度已可用 · 占用会话结束后立即继续")
-        case .desktop: return ("预计继续", desktopWait.hero, "解除后自动重试 · " + countdown(clock.nextAttempt, due: "即将重试"))
-        case .nativeGrace: return ("宽限期剩余", countdown(clock.nextAttempt, due: "即将接手"), "随后由 LimitBreak 接手")
+        case .concurrency: return (L("预计继续", "Estimated continue"), L("等名额", "Waiting for slot"), L("额度已可用 · 占用会话结束后立即继续", "Quota available · Queued until running session ends"))
+        case .desktop: return (L("预计继续", "Estimated continue"), desktopWait.hero, L("解除后自动重试 · ", "Retrying once clear · ") + countdown(clock.nextAttempt, due: L("即将重试", "Retrying soon")))
+        case .nativeGrace: return (L("宽限期剩余", "Grace period remaining"), countdown(clock.nextAttempt, due: L("即将接手", "Taking over soon")), L("随后由 LimitBreak 接手", "LimitBreak will take over afterwards"))
         case .none: break
         }
-        if job.state == "READY_TO_RESUME" { return ("预计继续", "排队发送", "额度已确认") }
-        if clock.available > 0 { return ("预计继续", "复查后", "池中有账号可用，等复查确认") }
-        guard let at = clock.expected else { return ("预计继续", "未知", clock.total == 0 ? "没有可等待的账号" : "来源未给出重置时间，按节奏复查") }
-        let title = task.hosted ? "距自动继续" : "距额度恢复"
-        return (title, countdown(at, due: clock.fromRecordedReset ? "即将尝试" : "复查确认中"),
-                at.formatted(.dateTime.weekday(.abbreviated).hour().minute().second()) + (clock.fromRecordedReset ? "\n查询被限流，按记录的重置时间" : "\n以复查到的新额度为准"))
+        if job.state == "READY_TO_RESUME" { return (L("预计继续", "Estimated continue"), L("排队发送", "Queued"), L("额度已确认", "Quota confirmed")) }
+        if clock.available > 0 { return (L("预计继续", "Estimated continue"), L("复查后", "After check"), L("池中有账号可用，等复查确认", "Account available; awaiting check confirmation")) }
+        guard let at = clock.expected else { return (L("预计继续", "Estimated continue"), L("未知", "Unknown"), clock.total == 0 ? L("没有可等待的账号", "No accounts to wait on") : L("来源未给出重置时间，按节奏复查", "No reset time provided; checking on cadence")) }
+        let title = task.hosted ? L("距自动继续", "Until continue") : L("距额度恢复", "Until recovery")
+        return (title, countdown(at, due: clock.fromRecordedReset ? L("即将尝试", "Retrying soon") : L("复查确认中", "Confirming check")),
+                at.formatted(Date.FormatStyle().weekday(.abbreviated).hour().minute().second().locale(LanguageManager.shared.locale)) + (clock.fromRecordedReset ? L("\n查询被限流，按记录的重置时间", "\nThrottled; retrying at recorded reset") : L("\n以复查到的新额度为准", "\nSubject to fresh quota check")))
     }
     // Elapsed share of the wait from hitting the limit to the expected reset.
     private var heroProgress: Double? {
@@ -161,23 +161,23 @@ struct RecoveryCard: View {
         let clock = task.clock
         let job = task.job
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
-            cell("撞上限额", recoveryTime(task.started, now: now), task.started.map { trayRelative($0, now: now) } ?? "", "exclamationmark.octagon", .red)
-            cell(task.finished == nil ? "已等待" : "共等待", task.started.map { trayDuration((task.finished ?? now).timeIntervalSince($0)) } ?? "—", "从撞限额起计", "timer", .indigo)
+            cell(L("撞上限额", "Hit Limit"), recoveryTime(task.started, now: now), task.started.map { trayRelative($0, now: now) } ?? "", "exclamationmark.octagon", .red)
+            cell(task.finished == nil ? L("已等待", "Waited") : L("共等待", "Total Wait"), task.started.map { localizedDuration((task.finished ?? now).timeIntervalSince($0)) } ?? "—", L("从撞限额起计", "From limit hit"), "timer", .indigo)
             if job.active {
-                cell("下次查询额度", countdown(clock?.nextCheck, due: "查询中…"), clock?.nextCheck.map { recoveryTime($0, now: now) } ?? "按来源节奏查询", "arrow.triangle.2.circlepath", .teal)
-                cell("下次评估", clock?.block == .concurrency ? "名额释放即试" : countdown(clock?.nextAttempt, due: "评估中…"), clock?.nextAttempt.map { recoveryTime($0, now: now) } ?? "", "clock.arrow.circlepath", .blue)
-                cell("最早重置", countdown(clock?.expected, due: "已到点"), clock?.expected.map { recoveryTime($0, now: now) } ?? (clock.map { $0.available > 0 ? "已有可用账号" : "未知" } ?? ""), "clock.badge.checkmark", .green)
-                cell("额度池", clock.map { $0.total == 0 ? "未匹配" : "\($0.available)/\($0.total) 可用" } ?? "—", task.session?.pool?.basisTitle ?? "", "person.2.circle", (clock?.available ?? 0) > 0 ? .green : .orange)
+                cell(L("下次查询额度", "Next Check"), countdown(clock?.nextCheck, due: L("查询中…", "Checking…")), clock?.nextCheck.map { recoveryTime($0, now: now) } ?? L("按来源节奏查询", "On source cadence"), "arrow.triangle.2.circlepath", .teal)
+                cell(L("下次评估", "Next Eval"), clock?.block == .concurrency ? L("名额释放即试", "Ready when freed") : countdown(clock?.nextAttempt, due: L("评估中…", "Evaluating…")), clock?.nextAttempt.map { recoveryTime($0, now: now) } ?? "", "clock.arrow.circlepath", .blue)
+                cell(L("最早重置", "Earliest Reset"), countdown(clock?.expected, due: L("已到点", "Due now")), clock?.expected.map { recoveryTime($0, now: now) } ?? (clock.map { $0.available > 0 ? L("已有可用账号", "Account ready") : L("未知", "Unknown") } ?? ""), "clock.badge.checkmark", .green)
+                cell(L("额度池", "Quota Pool"), clock.map { $0.total == 0 ? L("未匹配", "Unmatched") : "\($0.available)/\($0.total) " + L("可用", "Available") } ?? "—", task.session?.pool?.basisTitle ?? "", "person.2.circle", (clock?.available ?? 0) > 0 ? .green : .orange)
             }
-            cell("发送次数", "\(job.attempts ?? 0)", (job.attempts ?? 0) > 0 ? "不确定时不会重发" : "尚未发送", "paperplane", .secondary)
+            cell(L("发送次数", "Attempts"), "\(job.attempts ?? 0)", (job.attempts ?? 0) > 0 ? L("不确定时不会重发", "No auto-resend if unsure") : L("尚未发送", "Not yet sent"), "paperplane", .secondary)
             if let channel {
-                cell("发送方式", channel.title(terminal: terminal), channel.summary(terminal: terminal), channel.icon, channel.color)
+                cell(L("发送方式", "Delivery"), channel.title(terminal: terminal), channel.summary(terminal: terminal), channel.icon, channel.color)
                     .help(channel.detail(terminal: terminal))
             } else if task.hosted, job.active, let session = task.session {
                 let plan = runtime.deliveryPlan(for: session)
-                cell("将使用", plan.title, plan.summary, plan.icon, plan.color).help(plan.detail)
+                cell(L("将使用", "Will Use"), plan.title, plan.summary, plan.icon, plan.color).help(plan.detail)
             }
-            if let account = job.account_id, !account.isEmpty { cell("使用账号", shortAccount(account), "", "person.crop.circle", .secondary) }
+            if let account = job.account_id, !account.isEmpty { cell(L("使用账号", "Account"), shortAccount(account), "", "person.crop.circle", .secondary) }
         }
     }
     private func cell(_ title: String, _ value: String, _ detail: String, _ icon: String, _ color: Color) -> some View {
@@ -193,7 +193,7 @@ struct RecoveryCard: View {
         let accounts = runtime.poolAccounts(task.session)
         if task.job.active, !accounts.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text("账号池（任一账号恢复即可继续）").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(L("账号池（任一账号恢复即可继续）", "Quota Pool (Continues when any account recovers)")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 ForEach(accounts) { account in
                     let badge = runtime.accountBadge(account)
                     let holders = runtime.sessions(boundTo: account.id).filter { $0.id != task.job.session_id && $0.state == "RUNNING" }
@@ -202,15 +202,15 @@ struct RecoveryCard: View {
                         Text(account.email.isEmpty ? shortAccount(account.id) : account.email).font(.callout).lineLimit(1)
                         QuotaStateBadge(text: badge.0, color: badge.1)
                         if !holders.isEmpty {
-                            Text("运行中：" + holders.prefix(2).map(\.displayTitle).joined(separator: "、")).font(.caption2).foregroundStyle(.orange).lineLimit(1)
+                            Text(L("运行中：", "Running: ") + holders.prefix(2).map(\.displayTitle).joined(separator: ", ")).font(.caption2).foregroundStyle(.orange).lineLimit(1)
                         }
                         Spacer()
                         if let reset = runtime.accountReset(account) {
-                            Label(countdown(reset, due: "已到点"), systemImage: "clock.badge.checkmark").font(.caption.monospacedDigit()).foregroundStyle(.green)
-                                .help("重置于 " + reset.formatted(date: .abbreviated, time: .standard))
+                            Label(countdown(reset, due: L("已到点", "Due")), systemImage: "clock.badge.checkmark").font(.caption.monospacedDigit()).foregroundStyle(.green)
+                                .help(L("重置于 ", "Resets at ") + reset.formatted(date: .abbreviated, time: .standard))
                         }
                         if let next = trayDate(account.next_check_at), next > now {
-                            Label(trayDuration(next.timeIntervalSince(now)), systemImage: "arrow.triangle.2.circlepath").font(.caption.monospacedDigit()).foregroundStyle(.teal).help("下次查询该账号额度")
+                            Label(localizedDuration(next.timeIntervalSince(now)), systemImage: "arrow.triangle.2.circlepath").font(.caption.monospacedDigit()).foregroundStyle(.teal).help(L("下次查询该账号额度", "Next check for this account"))
                         }
                     }
                 }
@@ -221,7 +221,7 @@ struct RecoveryCard: View {
     @ViewBuilder private var events: some View {
         let items = task.session.map { runtime.events(for: $0) } ?? []
         if !items.isEmpty {
-            DisclosureGroup("最近事件（\(items.count)）") {
+            DisclosureGroup(L("最近事件（\(items.count)）", "Recent Events (\(items.count))")) {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(items) { item in
                         HStack(alignment: .top, spacing: 8) {
@@ -239,10 +239,10 @@ struct RecoveryCard: View {
         let job = task.job
         return [
             recoveryTime(task.started, now: now),
-            clock?.expected.map { countdown($0, due: "已到点") } ?? (job.active ? "按节奏复查" : ""),
-            job.active ? (clock?.nextCheck.map { "查询 " + countdown($0, due: "进行中") } ?? "") : "",
-            channel?.title(terminal: terminal) ?? (clock?.block == RecoveryBlock.none || !job.active ? ((job.attempts ?? 0) > 0 ? "已发 \(job.attempts ?? 0) 次" : "") : "已暂停"),
-            job.state == "VERIFYING" ? "等 Hook 确认" : "",
+            clock?.expected.map { countdown($0, due: L("已到点", "Due")) } ?? (job.active ? L("按节奏复查", "Checking on cadence") : ""),
+            job.active ? (clock?.nextCheck.map { L("查询 ", "Check in ") + countdown($0, due: L("进行中", "In progress")) } ?? "") : "",
+            channel?.title(terminal: terminal) ?? (clock?.block == RecoveryBlock.none || !job.active ? ((job.attempts ?? 0) > 0 ? L("已发 \(job.attempts ?? 0) 次", "Sent \(job.attempts ?? 0) time(s)") : "") : L("已暂停", "Paused")),
+            job.state == "VERIFYING" ? L("等 Hook 确认", "Awaiting hook") : "",
             job.state == "COMPLETED" ? recoveryTime(task.finished, now: now) : "",
         ]
     }

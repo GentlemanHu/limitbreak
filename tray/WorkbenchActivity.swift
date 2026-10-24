@@ -15,12 +15,12 @@ struct WorkbenchActivity: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                TextField("搜索会话或内容", text: $search).textFieldStyle(.roundedBorder)
-                Toggle("只看发送相关", isOn: $onlySends).toggleStyle(.checkbox)
+                TextField(L("搜索会话或内容", "Search sessions or events"), text: $search).textFieldStyle(.roundedBorder)
+                Toggle(L("只看发送相关", "Sends only"), isOn: $onlySends).toggleStyle(.checkbox)
             }.padding(16)
             Divider()
             if items.isEmpty {
-                WorkbenchEmpty(title: "暂无记录", detail: "会话事件、发送结果和设置修改都会记录在这里。", icon: "list.bullet.rectangle")
+                WorkbenchEmpty(title: L("暂无记录", "No Activity Recorded"), detail: L("会话事件、发送结果和设置修改都会记录在这里。", "Session hooks, delivery outcomes, and configuration changes appear here."), icon: "list.bullet.rectangle")
             } else {
                 List(items) { item in
                     HStack(alignment: .top, spacing: 12) {
@@ -30,9 +30,9 @@ struct WorkbenchActivity: View {
                                 Text(kindTitle(item.kind)).font(.callout.weight(.medium))
                                 if !item.session_id.isEmpty { Text(title(item.session_id)).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
                                 Spacer()
-                                Text(trayDate(item.time)?.formatted(date: .abbreviated, time: .standard) ?? item.time).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                Text(trayDate(item.time)?.formatted(Date.FormatStyle(date: .abbreviated, time: .standard, locale: LanguageManager.shared.locale)) ?? item.time).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                             }
-                            Text(item.message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                            Text(item.localized).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                         }
                     }.padding(.vertical, 3)
                 }
@@ -43,9 +43,13 @@ struct WorkbenchActivity: View {
         runtime.sessions.first { $0.id == id }?.displayTitle ?? String(id.prefix(8))
     }
     private func kindTitle(_ kind: String) -> String {
-        ["dispatch": "发送继续", "bridge_result": "发送结果", "test_send": "测试发送", "native_resume": "原生自动继续", "attention": "需要处理",
-         "resume_circuit_breaker": "自动恢复熔断", "running_stale": "运行失联", "cancel": "停止恢复", "hook": "会话事件",
-         "policy": "规则修改", "session_settings": "会话设置", "binding": "旧版绑定"][kind] ?? kind
+        let zh = ["dispatch": "发送继续", "bridge_result": "发送结果", "test_send": "测试发送", "native_resume": "原生自动继续", "attention": "需要处理",
+                  "resume_circuit_breaker": "自动恢复熔断", "running_stale": "运行失联", "cancel": "停止恢复", "hook": "会话事件",
+                  "policy": "规则修改", "session_settings": "会话设置", "binding": "旧版绑定"]
+        let en = ["dispatch": "Dispatch", "bridge_result": "Send Result", "test_send": "Test Send", "native_resume": "Native Resume", "attention": "Needs Attention",
+                  "resume_circuit_breaker": "Circuit Breaker", "running_stale": "Stale Session", "cancel": "Cancelled", "hook": "Session Event",
+                  "policy": "Policy Changed", "session_settings": "Session Settings", "binding": "Legacy Binding"]
+        return (LanguageManager.shared.isChinese ? zh : en)[kind] ?? kind
     }
     private func icon(_ kind: String) -> String {
         switch kind {

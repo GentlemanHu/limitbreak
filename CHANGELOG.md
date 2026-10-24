@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Versions follow the `VERSION` file and [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-10-24
+
+### Added
+- Bilingual internationalization (English & Simplified Chinese). Auto-detects macOS system language by default, with a manual override in Settings (`Language & Appearance`).
+- Reactive language engine in `tray/L10n.swift`: switching languages takes effect immediately across all windows, popovers, and menus without restarting the application.
+- Comprehensive localization of all prompt words, continue prompts, session states, canonical engine reasons, wait conditions, and delivery channel descriptions.
+
 ## [1.0.1] - 2026-10-24
 
 ### Fixed

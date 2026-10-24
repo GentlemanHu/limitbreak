@@ -109,14 +109,14 @@ final class TrayRuntime: ObservableObject {
     var paused: Bool { snapshot?.paused ?? true }
     var title: String {
         if !configured { return "LimitBreak" }
-        if child?.isRunning != true { return "额度 · 离线" }
-        if [.starting, .checking].contains(sourcePhase) { return "额度 · 连接中" }
-        if !proxyConnected { return "额度 · 未连接" }
-        if attentionCount > 0 { return "额度 · 需处理" }
-        if paused { return "额度 · 已暂停" }
-        if !automationConsented || hostedReadyCount == 0 { return "额度 · 监控" }
-        if let nextCheck, waitingCount > 0 { return "额度 " + trayDuration(nextCheck.timeIntervalSince(now)) }
-        return "额度 · 托管"
+        if child?.isRunning != true { return L("额度 · 离线", "Quota · Offline") }
+        if [.starting, .checking].contains(sourcePhase) { return L("额度 · 连接中", "Quota · Connecting") }
+        if !proxyConnected { return L("额度 · 未连接", "Quota · Disconnected") }
+        if attentionCount > 0 { return L("额度 · 需处理", "Quota · Attention") }
+        if paused { return L("额度 · 已暂停", "Quota · Paused") }
+        if !automationConsented || hostedReadyCount == 0 { return L("额度 · 监控", "Quota · Monitor") }
+        if let nextCheck, waitingCount > 0 { return L("额度 ", "Quota ") + localizedDuration(nextCheck.timeIntervalSince(now)) }
+        return L("额度 · 托管", "Quota · Hosted")
     }
 
     func start() async {

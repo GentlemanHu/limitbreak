@@ -56,12 +56,15 @@ extension TrayRuntime {
     }
     private func recoveryBlock(_ session: TraySession, _ job: TrayJob) -> (RecoveryBlock, String) {
         let reason = job.reason ?? ""
-        let text = job.reason_text?.isEmpty == false ? job.reason_text! : reason
+        let text = LanguageManager.shared.explain(reason: reason, reasonText: job.reason_text)
         // The global budget note is written on the session; the per-account one on the job.
-        if session.reason.contains("并发已满") { return (.concurrency, session.explanation) }
-        if reason.hasPrefix("account concurrency limit") { return (.concurrency, text) }
+        if session.reason.contains("并发已满") || reason.hasPrefix("account concurrency limit") {
+            return (.concurrency, text)
+        }
         if reason.hasPrefix("waiting for desktop:") { return (.desktop, text) }
-        if reason == "等待原生自动继续（宽限期）" { return (.nativeGrace, "让 Claude 自带的自动继续先行，宽限期过后再由 LimitBreak 继续，避免发两次") }
+        if reason == "等待原生自动继续（宽限期）" || reason.hasPrefix("native quota auto-resume") {
+            return (.nativeGrace, L("让 Claude 自带的自动继续先行，宽限期过后再由 LimitBreak 继续，避免发两次", "Allowing Claude's native auto-continue to fire first; LimitBreak will take over after grace period"))
+        }
         return (.none, "")
     }
     private func throttledQuery(_ error: String?) -> Bool {
@@ -75,55 +78,56 @@ extension TrayRuntime {
 // continue time and how much of the pool is usable.
 struct SessionClockStrip: View {
     @ObservedObject var runtime: TrayRuntime
+    @ObservedObject private var lang = LanguageManager.shared
     let session: TraySession
     var body: some View {
         let clock = runtime.clock(for: session)
         HStack(spacing: 8) {
-            tile("当前", value: current.0, detail: clock.block == .none ? current.1 : clock.blockText, icon: clock.block == .none ? current.2 : "pause.circle.fill",
+            tile(L("当前", "Current"), value: current.0, detail: clock.block == .none ? current.1 : clock.blockText, icon: clock.block == .none ? current.2 : "pause.circle.fill",
                  color: clock.block == .none ? current.3 : .orange, busy: current.4)
-            tile("下次查询额度", value: countdown(clock.nextCheck, due: "查询中…"), detail: clockTime(clock.nextCheck) ?? "按来源节奏查询",
+            tile(L("下次查询额度", "Next Quota Check"), value: countdown(clock.nextCheck, due: L("查询中…", "Checking…")), detail: clockTime(clock.nextCheck) ?? L("按来源节奏查询", "Querying on source cadence"),
                  icon: "arrow.triangle.2.circlepath", color: .teal, busy: clock.nextCheck.map { $0 <= runtime.now } ?? false)
             tile(expectedTitle, value: expectedValue(clock), detail: expectedDetail(clock), icon: "clock.badge.checkmark", color: .blue, busy: false)
-            tile("额度池", value: clock.total == 0 ? "未匹配" : "\(clock.available)/\(clock.total) 可用", detail: clock.total == 0 ? "可手动指定账号" : (clock.available > 0 ? "撞上限额时可立即排队" : "全部受限或待复查"),
+            tile(L("额度池", "Quota Pool"), value: clock.total == 0 ? L("未匹配", "Unmatched") : "\(clock.available)/\(clock.total) " + L("可用", "Available"), detail: clock.total == 0 ? L("可手动指定账号", "Manual account assignment available") : (clock.available > 0 ? L("撞上限额时可立即排队", "Ready to queue on rate limit") : L("全部受限或待复查", "All accounts limited or pending check")),
                  icon: "person.2.circle", color: clock.available > 0 ? .green : (clock.total == 0 ? .orange : .red), busy: false)
         }
     }
     private var hosted: Bool { ["hosted", "legacy"].contains(session.host?.mode ?? "") }
-    private var expectedTitle: String { hosted && session.host?.ready != false ? "预计自动继续" : "预计额度恢复" }
+    private var expectedTitle: String { hosted && session.host?.ready != false ? L("预计自动继续", "Estimated Continue") : L("预计额度恢复", "Estimated Recovery") }
     private func expectedValue(_ clock: SessionClock) -> String {
         switch clock.block {
-        case .concurrency: return "等并发名额"
-        case .desktop: return "等桌面就绪"
-        case .nativeGrace: return countdown(clock.nextAttempt, due: "即将接手")
+        case .concurrency: return L("等并发名额", "Waiting for slot")
+        case .desktop: return L("等桌面就绪", "Waiting for desktop")
+        case .nativeGrace: return countdown(clock.nextAttempt, due: L("即将接手", "Taking over soon"))
         case .none: break
         }
-        if clock.available > 0 { return session.state == "COOLDOWN" || session.state == "READY_TO_RESUME" ? "复查确认后" : "无需等待" }
-        return countdown(clock.expected, due: clock.fromRecordedReset ? "即将尝试" : "复查确认中")
+        if clock.available > 0 { return session.state == "COOLDOWN" || session.state == "READY_TO_RESUME" ? L("复查确认后", "After check confirmation") : L("无需等待", "No wait needed") }
+        return countdown(clock.expected, due: clock.fromRecordedReset ? L("即将尝试", "Retrying soon") : L("复查确认中", "Confirming check"))
     }
     private func expectedDetail(_ clock: SessionClock) -> String {
-        if clock.block != .none { return "额度已可用，" + (clock.block == .nativeGrace ? "宽限期后由 LimitBreak 接手" : "条件满足后立即发送") }
-        if clock.available > 0 { return "池中有账号可用" }
-        guard let at = clock.expected else { return clock.total == 0 ? "没有可等待的账号" : "来源未给出重置时间" }
-        let when = at.formatted(.dateTime.weekday(.abbreviated).hour().minute())
-        return clock.fromRecordedReset ? when + " · 查询被限流，按记录的重置时间尝试" : when + " · 以复查为准"
+        if clock.block != .none { return L("额度已可用，", "Quota is available; ") + (clock.block == .nativeGrace ? L("宽限期后由 LimitBreak 接手", "LimitBreak takes over after grace period") : L("条件满足后立即发送", "sending as soon as conditions are met")) }
+        if clock.available > 0 { return L("池中有账号可用", "Account available in pool") }
+        guard let at = clock.expected else { return clock.total == 0 ? L("没有可等待的账号", "No accounts to wait on") : L("来源未给出重置时间", "Source provided no reset time") }
+        let when = at.formatted(Date.FormatStyle().weekday(.abbreviated).hour().minute().locale(lang.locale))
+        return clock.fromRecordedReset ? when + L(" · 查询被限流，按记录的重置时间尝试", " · Throttled, retrying at recorded reset") : when + L(" · 以复查为准", " · Subject to check")
     }
     private var current: (String, String, String, Color, Bool) {
         switch session.state {
-        case "RUNNING": return ("运行中", hosted ? "撞上限额后自动排队" : "撞上限额后只记录", "play.circle.fill", .green, false)
-        case "COOLDOWN": return ("等待恢复", "到点复查，确认后发送", "hourglass", .indigo, false)
-        case "READY_TO_RESUME": return ("额度已恢复", "排队等待发送", "checkmark.circle.fill", .blue, false)
-        case "DISPATCHING": return ("正在发送", "打开会话并写入继续文案", "paperplane.fill", .blue, true)
-        case "VERIFYING": return ("等待回执", "确认会话收到消息", "checkmark.message", .blue, true)
-        case "NEEDS_ATTENTION": return ("需要处理", "不会自动重发", "exclamationmark.triangle.fill", .orange, false)
-        case "COMPLETED": return ("已继续", "本次已完成", "checkmark.seal.fill", .green, false)
-        default: return (trayState(session.state.isEmpty ? "unknown" : session.state), hosted ? "已托管" : TrayHostMode.title(session.host?.mode ?? ""), "circle.dashed", .secondary, false)
+        case "RUNNING": return (L("运行中", "Running"), hosted ? L("撞上限额后自动排队", "Queues automatically when rate-limited") : L("撞上限额后只记录", "Logs only when rate-limited"), "play.circle.fill", .green, false)
+        case "COOLDOWN": return (L("等待恢复", "Waiting"), L("到点复查，确认后发送", "Checks at reset time; sends on confirmation"), "hourglass", .indigo, false)
+        case "READY_TO_RESUME": return (L("额度已恢复", "Quota Restored"), L("排队等待发送", "Queued waiting to send"), "checkmark.circle.fill", .blue, false)
+        case "DISPATCHING": return (L("正在发送", "Sending"), L("打开会话并写入继续文案", "Opening session and writing continue prompt"), "paperplane.fill", .blue, true)
+        case "VERIFYING": return (L("等待回执", "Awaiting Receipt"), L("确认会话收到消息", "Verifying session received message"), "checkmark.message", .blue, true)
+        case "NEEDS_ATTENTION": return (L("需要处理", "Needs Attention"), L("不会自动重发", "Will not resend automatically"), "exclamationmark.triangle.fill", .orange, false)
+        case "COMPLETED": return (L("已继续", "Continued"), L("本次已完成", "Completed this round"), "checkmark.seal.fill", .green, false)
+        default: return (localizedState(session.state.isEmpty ? "unknown" : session.state), hosted ? L("已托管", "Hosted") : TrayHostMode.localizedTitle(session.host?.mode ?? ""), "circle.dashed", .secondary, false)
         }
     }
     private func countdown(_ date: Date?, due: String) -> String {
         guard let date else { return "—" }
-        return date > runtime.now ? trayDuration(date.timeIntervalSince(runtime.now)) : due
+        return date > runtime.now ? localizedDuration(date.timeIntervalSince(runtime.now)) : due
     }
-    private func clockTime(_ date: Date?) -> String? { date.map { $0.formatted(date: .omitted, time: .standard) } }
+    private func clockTime(_ date: Date?) -> String? { date.map { $0.formatted(Date.FormatStyle(date: .omitted, time: .standard, locale: lang.locale)) } }
     private func tile(_ title: String, value: String, detail: String, icon: String, color: Color, busy: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {

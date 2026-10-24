@@ -84,19 +84,18 @@ func quotaWindowKind(_ w: TrayWindow) -> QuotaWindowKind {
 }
 
 func quotaWindowTitle(_ w: TrayWindow) -> String {
-    // Provider names that are already readable (Chinese) are kept as they are.
-    if w.name.unicodeScalars.contains(where: { $0.value >= 0x4E00 && $0.value <= 0x9FFF }) { return w.name }
     if let s = w.limit_seconds, s > 0 {
         switch s {
-        case 18000: return "5 小时"
-        case 86400: return "每日"
-        case 604800: return "每周"
-        case 2_592_000: return "每月"
-        default: return s % 3600 == 0 ? "\(s / 3600) 小时" : "\(s / 60) 分钟"
+        case 18000: return L("5 小时", "5 Hours")
+        case 86400: return L("每日", "Daily")
+        case 604800: return L("每周", "Weekly")
+        case 2_592_000: return L("每月", "Monthly")
+        default: return s % 3600 == 0 ? L("\(s / 3600) 小时", "\(s / 3600)h") : L("\(s / 60) 分钟", "\(s / 60)m")
         }
     }
-    if w.name == "code review quota" { return "代码审查" }
-    if w.name == "credential status" { return "凭证状态" }
+    if w.name.unicodeScalars.contains(where: { $0.value >= 0x4E00 && $0.value <= 0x9FFF }) { return w.name }
+    if w.name == "code review quota" { return L("代码审查", "Code Review") }
+    if w.name == "credential status" { return L("凭证状态", "Credential Status") }
     return w.name.replacingOccurrences(of: "rate_limit:", with: "").replacingOccurrences(of: "_window", with: "").replacingOccurrences(of: "_", with: " ")
 }
 
@@ -166,13 +165,13 @@ func quotaUsageColor(_ used: Double?, blocked: Bool) -> Color {
 }
 
 func trayAgo(_ date: Date?, now: Date) -> String {
-    guard let date else { return "未知" }
+    guard let date else { return L("未知", "Unknown") }
     let s = Int(now.timeIntervalSince(date))
     if s < 0 { return date.formatted(date: .omitted, time: .shortened) }
-    if s < 60 { return "刚刚" }
-    if s < 3600 { return "\(s / 60) 分钟前" }
-    if s < 86400 { return "\(s / 3600) 小时前" }
-    if s < 7 * 86400 { return "\(s / 86400) 天前" }
+    if s < 60 { return L("刚刚", "Just now") }
+    if s < 3600 { return L("\(s / 60) 分钟前", "\(s / 60)m ago") }
+    if s < 86400 { return L("\(s / 3600) 小时前", "\(s / 3600)h ago") }
+    if s < 7 * 86400 { return L("\(s / 86400) 天前", "\(s / 86400)d ago") }
     return date.formatted(.dateTime.month(.abbreviated).day())
 }
 
@@ -202,17 +201,22 @@ struct QuotaBar: View {
     private var percent: String {
         guard let window else { return "—" }
         if let used { return "\(Int(used.rounded()))%" }
-        return window.blocked ? "已满" : "未知"
+        return window.blocked ? L("已满", "Full") : L("未知", "Unknown")
     }
     private var reset: Date? { trayDate(window?.reset_at) }
     private var note: String? {
-        guard let window else { return "来源未提供此窗口" }
-        if let reset { return reset <= now ? "已到重置时间，等待复查确认" : "\(trayDuration(reset.timeIntervalSince(now))) 后重置 · \(reset.formatted(.dateTime.weekday(.abbreviated).hour().minute()))" }
-        return window.blocked ? "已受限，来源未给出重置时间" : nil
+        guard let window else { return L("来源未提供此窗口", "Source does not provide this window") }
+        if let reset {
+            if reset <= now { return L("已到重置时间，等待复查确认", "Reset time reached; waiting for check confirmation") }
+            return L("\(trayDuration(reset.timeIntervalSince(now))) 后重置 · \(reset.formatted(.dateTime.weekday(.abbreviated).hour().minute()))",
+                     "Resets in \(trayDuration(reset.timeIntervalSince(now))) · \(reset.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+        }
+        return window.blocked ? L("已受限，来源未给出重置时间", "Limited; source provided no reset time") : nil
     }
     private var help: String {
         guard let reset else { return note ?? "" }
-        return "预计重置：" + reset.formatted(date: .complete, time: .shortened) + "（以复查到的新额度为准，也可能提前重置）"
+        return L("预计重置：" + reset.formatted(date: .complete, time: .shortened) + "（以复查到的新额度为准，也可能提前重置）",
+                 "Estimated reset: " + reset.formatted(date: .complete, time: .shortened) + " (subject to live quota check; may reset early)")
     }
 }
 
@@ -227,20 +231,20 @@ struct QuotaStateBadge: View {
 
 extension TrayRuntime {
     func accountBadge(_ account: TrayAccount) -> (String, Color) {
-        if account.disabled == true { return ("已停用", .gray) }
-        if !isFresh(account) { return (account.quota_error?.isEmpty == false ? "查询失败" : "等待复查", .orange) }
+        if account.disabled == true { return (L("已停用", "Disabled"), .gray) }
+        if !isFresh(account) { return (account.quota_error?.isEmpty == false ? L("查询失败", "Error") : L("等待复查", "Checking"), .orange) }
         switch account.state {
-        case "allowed": return (AccountQuotaLayout(account).scopedGroups.contains { $0.state == "limited" } ? "部分受限" : "可用", .green)
-        case "limited": return ("受限", .red)
-        default: return ("未知", .gray)
+        case "allowed": return (AccountQuotaLayout(account).scopedGroups.contains { $0.state == "limited" } ? L("部分受限", "Partial") : L("可用", "Active"), .green)
+        case "limited": return (L("受限", "Limited"), .red)
+        default: return (L("未知", "Unknown"), .gray)
         }
     }
     func groupScopeText(_ group: TrayQuotaGroup) -> String {
         switch group.scope {
-        case "models": return "只限制 " + (group.models ?? []).joined(separator: "、") + " 模型的会话"
-        case "operation": return "只限制代码审查等单项操作，不影响对话续写"
-        case "account": return "账号共享额度，影响所有会话"
-        default: return "适用范围未知：保守地视为影响整个账号"
+        case "models": return L("只限制 " + (group.models ?? []).joined(separator: "、") + " 模型的会话", "Only limits sessions using " + (group.models ?? []).joined(separator: ", ") + " models")
+        case "operation": return L("只限制代码审查等单项操作，不影响对话续写", "Only limits single operations like code review; does not block session continuation")
+        case "account": return L("账号共享额度，影响所有会话", "Shared account quota; affects all sessions")
+        default: return L("适用范围未知：保守地视为影响整个账号", "Unknown scope: treated as account-wide")
         }
     }
     func sessions(boundTo accountID: String) -> [TraySession] { index.sessionsByAccount[accountID] ?? [] }
@@ -261,10 +265,10 @@ struct SessionTally {
         }
     }
     var detail: String {
-        guard total > 0 else { return "未绑定会话" }
-        var parts = ["托管 \(hosted)", "监控 \(monitored)"]
-        if waiting > 0 { parts.append("等待 \(waiting)") }
-        if attention > 0 { parts.append("需处理 \(attention)") }
+        guard total > 0 else { return L("未绑定会话", "No bound sessions") }
+        var parts = [L("托管 \(hosted)", "Hosted \(hosted)"), L("监控 \(monitored)", "Monitored \(monitored)")]
+        if waiting > 0 { parts.append(L("等待 \(waiting)", "Waiting \(waiting)")) }
+        if attention > 0 { parts.append(L("需处理 \(attention)", "Needs attention \(attention)")) }
         return parts.joined(separator: " · ")
     }
 }
